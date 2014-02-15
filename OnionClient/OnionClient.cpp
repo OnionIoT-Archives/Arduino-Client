@@ -177,11 +177,11 @@ void OnionClient::update(char* endpoint, float val) {
 	payload[0] = 0;
 
 	strcat(payload, deviceId);
-	strcat(payload, ";");
+	strcat(payload, ";UPDATE;");
 	strcat(payload, endpoint);
 	strcat(payload, ";");
 	strcat(payload, value);
-	publish("/update", payload);
+	publish("/register", payload);
 	
 	delete[] value;
 	delete[] payload;
