@@ -1,6 +1,6 @@
 #include "OnionClient.h"
 
-char OnionClient::domain[] = "dev1.onion.io";
+char OnionClient::domain[] = "mqtt.onion.io";
 uint16_t OnionClient::port = 1883;
 
 
@@ -31,7 +31,6 @@ void OnionClient::begin() {
 	strcat(init, ";CONNECTED");
 
 	if (connect(deviceId, deviceId, deviceKey)) {
-		publish(topic, "Onion is Online!");
 		publish("/register", init);
 		subscribe(topic);
 	}
@@ -187,7 +186,6 @@ void OnionClient::update(char* endpoint, float val) {
 	delete[] value;
 	delete[] payload;
 }
-
 
 
 

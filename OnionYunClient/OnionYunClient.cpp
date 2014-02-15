@@ -1,6 +1,6 @@
 #include "OnionYunClient.h"
 
-char OnionYunClient::domain[] = "dev.onion.io";
+char OnionYunClient::domain[] = "mqtt.onion.io";
 uint16_t OnionYunClient::port = 1883;
 
 
@@ -31,7 +31,6 @@ void OnionYunClient::begin() {
 	strcat(init, ";CONNECTED");
 
 	if (connect(deviceId, deviceId, deviceKey)) {
-		publish(topic, "Onion is Online!");
 		publish("/register", init);
 		subscribe(topic);
 	}
