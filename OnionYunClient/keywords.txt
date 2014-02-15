@@ -1,35 +1,27 @@
 #######################################
-# Syntax Coloring Map For Ethernet
+# Syntax Coloring Map For OnionYunClient
 #######################################
 
 #######################################
 # Datatypes (KEYWORD1)
 #######################################
 
-Ethernet	KEYWORD1
-EthernetClient	KEYWORD1
-EthernetServer	KEYWORD1
-IPAddress	KEYWORD1
+OnionYunClient	KEYWORD1
+OnionParams	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-status	KEYWORD2
-connect	KEYWORD2
-write	KEYWORD2
-available	KEYWORD2
-read	KEYWORD2
-peek	KEYWORD2
-flush	KEYWORD2
-stop	KEYWORD2
-connected	KEYWORD2
+getInt	KEYWORD2
+getFloat	KEYWORD2
+getChar	KEYWORD2
+getRaw	KEYWORD2
+getBool	KEYWORD2
+get	KEYWORD2
+post	KEYWORD2
+update	KEYWORD2
 begin	KEYWORD2
-beginPacket	KEYWORD2
-endPacket	KEYWORD2
-parsePacket	KEYWORD2
-remoteIP	KEYWORD2
-remotePort	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
