@@ -3,7 +3,7 @@
 #include <YunClient.h> 
 #include <OnionYunClient.h>
 
-OnionYunClient client("fEXKsE7S", "NfiGGlGMYDO2ZMqF"); 
+OnionYunClient client("device_id", "device_key"); 
 
 void lightOn(OnionParams* params) {
   digitalWrite(7, HIGH);

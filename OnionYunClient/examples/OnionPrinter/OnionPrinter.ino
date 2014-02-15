@@ -10,7 +10,7 @@ int printer_TX_Pin = 3;
 
 Thermal printer(printer_RX_Pin, printer_TX_Pin, 19200);
 
-OnionYunClient client("d001", "p"); 
+OnionYunClient client("device_id", "device_key"); 
 
 void printMsg(OnionParams* params) {
   char* msg = params->getChar(0);
@@ -20,8 +20,6 @@ void printMsg(OnionParams* params) {
 
 void setup() {
 
-  //printer.doubleHeightOn();
-  printer.boldOn();
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
 
