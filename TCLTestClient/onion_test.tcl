@@ -6,33 +6,33 @@
 # Date: 2/24/2014
 
 
-set ::HOST "mqtt.onion.io"
-set ::PORT 1883
+set ::HOST "zh.onion.io"
+set ::PORT 2721
 set ::KEEPALIVE 15
 
 set ::DEVICE_ID  "RsyI3k9O"
 set ::DEVICE_KEY "NgbaClBcKcxcYVtn"
 
-set ::MQTTPROTOCOLVERSION 	3
-set ::MQTTCONNECT     		[expr 1 << 4 ] ;# // Client request to connect to Server
-set ::MQTTCONNACK     		[expr 2 << 4 ] ;# // Connect Acknowledgment
-set ::MQTTPUBLISH     		[expr 3 << 4 ] ;# // Publish message
-set ::MQTTPUBACK      		[expr 4 << 4 ] ;# // Publish Acknowledgment
-set ::MQTTPUBREC      		[expr 5 << 4 ] ;# // Publish Received (assured delivery part 1)
-set ::MQTTPUBREL      		[expr 6 << 4 ] ;# // Publish Release (assured delivery part 2)
-set ::MQTTPUBCOMP     		[expr 7 << 4 ] ;# // Publish Complete (assured delivery part 3)
-set ::MQTTSUBSCRIBE   		[expr 8 << 4 ] ;# // Client Subscribe request
-set ::MQTTSUBACK      		[expr 9 << 4 ] ;# // Subscribe Acknowledgment
-set ::MQTTUNSUBSCRIBE 		[expr 10 << 4] ;# // Client Unsubscribe request
-set ::MQTTUNSUBACK    		[expr 11 << 4] ;# // Unsubscribe Acknowledgment
-set ::MQTTPINGREQ     		[expr 12 << 4] ;# // PING Request
-set ::MQTTPINGRESP    		[expr 13 << 4] ;# // PING Response
-set ::MQTTDISCONNECT  		[expr 14 << 4] ;# // Client is Disconnecting
-set ::MQTTReserved    		[expr 15 << 4] ;# // Reserved
+set ::ONIONPROTOCOLVERSION 	1
+set ::ONIONCONNECT     		[expr 1 << 4 ] ;# // Client request to connect to Server
+set ::ONIONCONNACK     		[expr 2 << 4 ] ;# // Connect Acknowledgment
+set ::ONIONPUBLISH     		[expr 3 << 4 ] ;# // Publish message
+set ::ONIONPUBACK      		[expr 4 << 4 ] ;# // Publish Acknowledgment
+set ::ONIONPUBREC      		[expr 5 << 4 ] ;# // Publish Received (assured delivery part 1)
+set ::ONIONPUBREL      		[expr 6 << 4 ] ;# // Publish Release (assured delivery part 2)
+set ::ONIONPUBCOMP     		[expr 7 << 4 ] ;# // Publish Complete (assured delivery part 3)
+set ::ONIONSUBSCRIBE   		[expr 8 << 4 ] ;# // Client Subscribe request
+set ::ONIONSUBACK      		[expr 9 << 4 ] ;# // Subscribe Acknowledgment
+set ::ONIONUNSUBSCRIBE 		[expr 10 << 4] ;# // Client Unsubscribe request
+set ::ONIONUNSUBACK    		[expr 11 << 4] ;# // Unsubscribe Acknowledgment
+set ::ONIONPINGREQ     		[expr 12 << 4] ;# // PING Request
+set ::ONIONPINGRESP    		[expr 13 << 4] ;# // PING Response
+set ::ONIONDISCONNECT  		[expr 14 << 4] ;# // Client is Disconnecting
+set ::ONIONReserved    		[expr 15 << 4] ;# // Reserved
 
-set ::MQTTQOS0        		[expr (0 << 1)]
-set ::MQTTQOS1        		[expr (1 << 1)]
-set ::MQTTQOS2        		[expr (2 << 1)]
+set ::ONIONQOS0        		[expr (0 << 1)]
+set ::ONIONQOS1        		[expr (1 << 1)]
+set ::ONIONQOS2        		[expr (2 << 1)]
 
 set ::NextMsgId 0
 set ::Sock ""
@@ -57,8 +57,8 @@ proc begin {} {
 }
 
 proc connect {device_id device_key} {
-    # 0x00, 0x06, 'M', 'Q', 'I', 's', 'd', 'p', MQTTPROTOCOLVERSION
-    set buffer "[binary format c* {0x00 0x06}]MQIsdp[binary format c $::MQTTPROTOCOLVERSION]"
+    # 0x00, 0x06, 'M', 'Q', 'I', 's', 'd', 'p', ONIONPROTOCOLVERSION
+    set buffer "Onion[binary format c $::ONIONPROTOCOLVERSION]"
     
     set v [binary format c [expr 0x02 | 0x80 | 0x40]]
     set buffer "$buffer$v"
@@ -69,7 +69,7 @@ proc connect {device_id device_key} {
     open_socket
     set ::NextMsgId 1
     #puts "About to write to socket: Connect - $buffer\n\n"
-    write_socket $::MQTTCONNECT $buffer
+    write_socket $::ONIONCONNECT $buffer
     # Try to read back response
     set resp ""
     set start [clock milliseconds]
@@ -115,7 +115,7 @@ proc open_socket {} {
 
 proc write_socket {header buffer} {
     set len [string length $buffer]
-    set lenbuf [getLenString $len]
+    set lenbuf [binary format S $len]
     binary scan $lenbuf H* hex
     #puts "Length of $len was converted to $hex"
     set buf "[binary format c $header]$lenbuf$buffer"
@@ -150,7 +150,7 @@ proc publish {topic payload} {
     }
     # Send data
     set buffer "[convert_string $topic]$payload"
-    write_socket $::MQTTPUBLISH $buffer
+    write_socket $::ONIONPUBLISH $buffer
 }
 
 proc subscribe {topic} {
@@ -166,7 +166,7 @@ proc subscribe {topic} {
     set buffer [binary format c [expr $::NextMsgId / 256]][binary format c [expr $::NextMsgId % 256]]
     set buffer "$buffer[convert_string $topic]"
     set buffer "$buffer[binary format c 0]"
-    write_socket [expr $::MQTTSUBSCRIBE | $::MQTTQOS1] $buffer
+    write_socket [expr $::ONIONSUBSCRIBE | $::ONIONQOS1] $buffer
 }
 
 proc callback {topic payload} {
@@ -188,7 +188,7 @@ proc loop {} {
                 
                 return 0
             } else {
-                write_socket $::MQTTPINGREQ ""
+                write_socket $::ONIONPINGREQ ""
                 puts "Sent timeout Ping"
                 set ::LastInActivity $now
                 set ::LastOutActivity $now
@@ -201,7 +201,7 @@ proc loop {} {
             set ::LastInActivity $now
             binary scan [string range $recv 0 0] H* typeHex
             set type [expr 0x$typeHex & 0xF0]
-            if {$type == $::MQTTPUBLISH} {
+            if {$type == $::ONIONPUBLISH} {
                 # Read packet length data
                 binary scan [string range $recv 1 1] H* byte
                 set digit [expr 0x$byte]
@@ -223,10 +223,10 @@ proc loop {} {
                 incr index $topicLength
                 set payload [string range $recv $index end]
                 callback $topic $payload
-            } elseif {$type == $::MQTTPINGREQ} {
-                write_socket $::MQTTPINGRESP ""
+            } elseif {$type == $::ONIONPINGREQ} {
+                write_socket $::ONIONPINGRESP ""
                 puts "Sent a Ping (got a request)"
-            } elseif {$type == $::MQTTPINGRESP} {
+            } elseif {$type == $::ONIONPINGRESP} {
                 set ::PingOutstanding 0
                 puts "Got a pong"
             }
