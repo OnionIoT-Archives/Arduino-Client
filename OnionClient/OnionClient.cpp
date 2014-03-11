@@ -122,7 +122,7 @@ char* OnionClient::registerFunction(char * endpoint, remoteFunction function, ch
 	    subscriptions.param_count = param_count;
 	    lastSubscription = &subscriptions;
 	} else {
-	    subscription_t* new_sub = malloc(sizeof(subscription_t));
+	    subscription_t* new_sub = (subscription_t*)malloc(sizeof(subscription_t));
 	    new_sub->id = totalFunctions;
 	    new_sub->endpoint = endpoint;
 	    new_sub->params = params;
@@ -268,7 +268,7 @@ boolean OnionClient::subscribe() {
         	    }
         	}
 	        
-    		return write(ONIONSUBSCRIBE, sbuf.data, sbuf.size);
+    		return write(ONIONSUBSCRIBE, (uint8_t*)sbuf.data, sbuf.size);
 	    }
 	    
 	}
@@ -300,7 +300,8 @@ boolean OnionClient::loop() {
 				if (type == ONIONPUBLISH) {
 				    uint16_t len = (buffer[1]<<8)+(buffer[2]);
 				    // Parse Msg Pack
-				    parsePublishData(buffer+3,len-3);
+				    const char* ptr = (const char*)buffer+3;
+				    parsePublishData(ptr,len-3);
 //					uint16_t tl = (buffer[] << 8) + buffer[llen + 2];
 //					char topic[tl + 1];
 //					for (uint16_t i=0; i < tl; i++) {
@@ -362,7 +363,7 @@ void OnionClient::sendPingResponse(void) {
     
 }
 
-void OnionClient::parsePublishData(uint8_t *buf, uint16_t len) {
+void OnionClient::parsePublishData(const char *buf, uint16_t len) {
     msgpack_zone mempool;
 	msgpack_zone_init(&mempool, 256);
 
