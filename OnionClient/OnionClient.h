@@ -6,32 +6,35 @@
 #include "RPEthernetClient.h"
 #include "OnionParams.h"
 
-// MQTT_MAX_PACKET_SIZE : Maximum packet size
-#define MQTT_MAX_PACKET_SIZE 	128
+// ONION_MAX_PACKET_SIZE : Maximum packet size
+#define ONION_MAX_PACKET_SIZE 	128
 
-// MQTT_KEEPALIVE : keepAlive interval in Seconds
-#define MQTT_KEEPALIVE 			15
+// ONION CONNECT HEADER LENGTH
+#define ONION_HEADER_CONNECT_LENGTH 6
 
-#define MQTTPROTOCOLVERSION 	3
-#define MQTTCONNECT     		1 << 4  // Client request to connect to Server
-#define MQTTCONNACK     		2 << 4  // Connect Acknowledgment
-#define MQTTPUBLISH     		3 << 4  // Publish message
-#define MQTTPUBACK      		4 << 4  // Publish Acknowledgment
-#define MQTTPUBREC      		5 << 4  // Publish Received (assured delivery part 1)
-#define MQTTPUBREL      		6 << 4  // Publish Release (assured delivery part 2)
-#define MQTTPUBCOMP     		7 << 4  // Publish Complete (assured delivery part 3)
-#define MQTTSUBSCRIBE   		8 << 4  // Client Subscribe request
-#define MQTTSUBACK      		9 << 4  // Subscribe Acknowledgment
-#define MQTTUNSUBSCRIBE 		10 << 4 // Client Unsubscribe request
-#define MQTTUNSUBACK    		11 << 4 // Unsubscribe Acknowledgment
-#define MQTTPINGREQ     		12 << 4 // PING Request
-#define MQTTPINGRESP    		13 << 4 // PING Response
-#define MQTTDISCONNECT  		14 << 4 // Client is Disconnecting
-#define MQTTReserved    		15 << 4 // Reserved
+// ONION_KEEPALIVE : keepAlive interval in Seconds
+#define ONION_KEEPALIVE 			15
 
-#define MQTTQOS0        		(0 << 1)
-#define MQTTQOS1        		(1 << 1)
-#define MQTTQOS2        		(2 << 1)
+#define ONIONPROTOCOLVERSION 	1
+#define ONIONCONNECT     		1 << 4  // Client request to connect to Server
+#define ONIONCONNACK     		2 << 4  // Connect Acknowledgment
+#define ONIONPUBLISH     		3 << 4  // Publish message
+#define ONIONPUBACK      		4 << 4  // Publish Acknowledgment
+#define ONIONPUBREC      		5 << 4  // Publish Received (assured delivery part 1)
+#define ONIONPUBREL      		6 << 4  // Publish Release (assured delivery part 2)
+#define ONIONPUBCOMP     		7 << 4  // Publish Complete (assured delivery part 3)
+#define ONIONSUBSCRIBE   		8 << 4  // Client Subscribe request
+#define ONIONSUBACK      		9 << 4  // Subscribe Acknowledgment
+#define ONIONUNSUBSCRIBE 		10 << 4 // Client Unsubscribe request
+#define ONIONUNSUBACK    		11 << 4 // Unsubscribe Acknowledgment
+#define ONIONPINGREQ     		12 << 4 // PING Request
+#define ONIONPINGRESP    		13 << 4 // PING Response
+#define ONIONDISCONNECT  		14 << 4 // Client is Disconnecting
+#define ONIONReserved    		15 << 4 // Reserved
+
+#define ONIONQOS0        		(0 << 1)
+#define ONIONQOS1        		(1 << 1)
+#define ONIONQOS2        		(2 << 1)
 
 typedef void(*remoteFunction)(OnionParams*);
 
@@ -47,17 +50,20 @@ public:
 
 protected:
 	void callback(char*, uint8_t*, unsigned int);
+	void parsePublishData(uint8_t *buf);
+	void sendPingRequest(void);
+	void sendPingResponse(void);
 	char* registerFunction(remoteFunction);
-	boolean connect(char*, char*, char*);
+	boolean connect(char*, char*);
 	boolean connected();
 	boolean publish(char*, char*);
 	boolean subscribe(char*);
-	uint16_t readPacket(uint8_t *);
+	uint16_t readPacket();
 	uint8_t readByte();
 	boolean write(uint8_t, uint8_t*, uint16_t);
 	uint16_t writeString(char*, uint8_t*, uint16_t);
 	
-	uint8_t buffer[MQTT_MAX_PACKET_SIZE];
+	uint8_t buffer[ONION_MAX_PACKET_SIZE];
 	uint16_t nextMsgId;
 	unsigned long lastOutActivity;
 	unsigned long lastInActivity;
@@ -66,6 +72,7 @@ protected:
 	// Static data for connecting to Onion
 	static char domain[];
 	static uint16_t port;
+	static const char connectHeader[ONION_HEADER_CONNECT_LENGTH];
 
 	// Array of functions registered as remote functions and length
 	remoteFunction* remoteFunctions;

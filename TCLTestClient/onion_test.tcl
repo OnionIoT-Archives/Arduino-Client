@@ -45,15 +45,15 @@ proc begin {} {
     set topic "/$::DEVICE_ID"
     set init "$::DEVICE_ID;CONNECTED"
     if {[connect $::DEVICE_ID $::DEVICE_KEY]} {
-        publish "/register" $init
-        subscribe $topic
+        #publish "/register" $init
+        #subscribe $topic
     }
-    puts "Registering command"
-    get "/on" "1"
-    get "/off" "2"
-    post "/set" "3" "value"
-    puts "Starting background loop"
-    every 100 loop
+    #puts "Registering command"
+    #get "/on" "1"
+    #get "/off" "2"
+    #post "/set" "3" "value"
+    #puts "Starting background loop"
+    #every 100 loop
 }
 
 proc connect {device_id device_key} {
@@ -86,7 +86,7 @@ proc connect {device_id device_key} {
     }
     if {[string length $resp]>3} {
         binary scan $resp cccc one two three four
-        #puts "Got response of: $one $two $three $four"
+        puts "Got response of: $one $two $three $four"
         if {$four == 0} {
             set ::LastInActivity [clock milliseconds]
             set ::PingOutstanding 0

@@ -1,8 +1,8 @@
 #include "OnionClient.h"
 
-char OnionClient::domain[] = "mqtt.onion.io";
-uint16_t OnionClient::port = 1883;
-
+char OnionClient::domain[] = "zh.onion.io";
+uint16_t OnionClient::port = 2721;
+const char OnionClient::connectHeader[ONION_HEADER_CONNECT_LENGTH] = { 'O','n','i','o','n', ONIONPROTOCOLVERSION };
 
 OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
@@ -30,62 +30,42 @@ void OnionClient::begin() {
 	strcat(init, deviceId);
 	strcat(init, ";CONNECTED");
 
-	if (connect(deviceId, deviceId, deviceKey)) {
-		publish("/register", init);
-		subscribe(topic);
+	if (connect(deviceId, deviceKey)) {
+		//publish("/register", init);
+		//subscribe(topic);
 	}
 
 	delete[] init;
 	delete[] topic;
 }
 
-boolean OnionClient::connect(char* id, char* user, char* pass) {
+boolean OnionClient::connect(char* id, char* key) {
 	if (!connected()) {
 		int result = _client->connect(OnionClient::domain, OnionClient::port);
 
 		if (result) {
 			nextMsgId = 1;
-			uint8_t d[9] = { 0x00, 0x06, 'M', 'Q', 'I', 's', 'd', 'p', MQTTPROTOCOLVERSION };
-			
-			// Leave room in the buffer for header and variable length field
-			uint16_t length = 5;
-			unsigned int j;
-			for (j = 0; j < 9; j++) {
-				buffer[length++] = d[j];
-			}
-			
-			// No WillMsg
-         	uint8_t v = 0x02;
-			
-			// User
-			v = v | 0x80;
-			
-			// Password
-            v = v | (0x80 >> 1);
-
-			buffer[length++] = v;
-
-			buffer[length++] = ((MQTT_KEEPALIVE) >> 8);
-			buffer[length++] = ((MQTT_KEEPALIVE) & 0xFF);
 		
-			// Writing id, user and pass
-			length = writeString(id, buffer, length);
-			length = writeString(user, buffer, length);
-			length = writeString(pass, buffer, length);
-         
-			write(MQTTCONNECT, buffer, length - 5);
+			uint8_t *ptr = buffer;
+			uint16_t length = ONION_HEADER_CONNECT_LENGTH;
+			memcpy(ptr,OnionClient::connectHeader,length);
+			ptr += length;
+			memcpy(ptr,id,8);
+			ptr += 8;
+			memcpy(ptr,key,16);
+            length += 24;
+			write(ONIONCONNECT, buffer, length);
          
 			lastInActivity = lastOutActivity = millis();
          
 			while (!_client->available()) {
 				unsigned long t = millis();
-				if (t - lastInActivity > MQTT_KEEPALIVE * 1000UL) {
+				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
 					_client->stop();
 					return false;
 				}
 			}
-			uint8_t llen;
-			uint16_t len = readPacket(&llen);
+			uint16_t len = readPacket();
 
 			if (len == 4 && buffer[3] == 0) {
 				lastInActivity = millis();
@@ -242,7 +222,7 @@ boolean OnionClient::publish(char* topic, char* payload) {
 		for (i = 0; i < plength; i++) {
 			buffer[length++] = payload[i];
 		}
-		uint8_t header = MQTTPUBLISH;
+		uint8_t header = ONIONPUBLISH;
 
 		return write(header, buffer, length - 5);
 	}
@@ -261,7 +241,7 @@ boolean OnionClient::subscribe(char* topic) {
 		buffer[length++] = (nextMsgId & 0xFF);
 		length = writeString(topic, buffer, length);
 		buffer[length++] = 0; // Only do QoS 0 subs
-		return write(MQTTSUBSCRIBE | MQTTQOS1, buffer, length - 5);
+		return write(ONIONSUBSCRIBE | ONIONQOS1, buffer, length - 5);
 	}
 	return false;
 }
@@ -269,12 +249,12 @@ boolean OnionClient::subscribe(char* topic) {
 boolean OnionClient::loop() {
 	if (connected()) {
 		unsigned long t = millis();
-		if ((t - lastInActivity > MQTT_KEEPALIVE * 1000UL) || (t - lastOutActivity > MQTT_KEEPALIVE * 1000UL)) {
+		if ((t - lastInActivity > ONION_KEEPALIVE * 1000UL) || (t - lastOutActivity > ONION_KEEPALIVE * 1000UL)) {
 			if (pingOutstanding) {
 				_client->stop();
 				return false;
 			} else {
-				buffer[0] = MQTTPINGREQ;
+				buffer[0] = ONIONPINGREQ;
 				buffer[1] = 0;
 				_client->write(buffer, 2);
 				lastOutActivity = t;
@@ -284,33 +264,36 @@ boolean OnionClient::loop() {
 		}
 
 		if (_client->available()) {
-			uint8_t llen;
-			uint16_t len = readPacket(&llen);
+			uint16_t len = readPacket();
 			if (len > 0) {
 				lastInActivity = t;
 				uint8_t type = buffer[0] & 0xF0;
-				if (type == MQTTPUBLISH) {
-					uint16_t tl = (buffer[llen + 1] << 8) + buffer[llen + 2];
-					char topic[tl + 1];
-					for (uint16_t i=0; i < tl; i++) {
-						topic[i] = buffer[llen + 3 + i];
-					}
-					topic[tl] = 0;
-					// ignore msgID - only support QoS 0 subs
-					uint8_t *payload = buffer + llen + 3 + tl;
-					callback(topic, payload, len - llen - 3 - tl);
-				} else if (type == MQTTPINGREQ) {
-					buffer[0] = MQTTPINGRESP;
+				if (type == ONIONPUBLISH) {
+				    // Parse Msg Pack
+				    parsePublishData(buffer+3);
+//					uint16_t tl = (buffer[] << 8) + buffer[llen + 2];
+//					char topic[tl + 1];
+//					for (uint16_t i=0; i < tl; i++) {
+//						topic[i] = buffer[llen + 3 + i];
+//					}
+//					topic[tl] = 0;
+//					// ignore msgID - only support QoS 0 subs
+//					uint8_t *payload = buffer + llen + 3 + tl;
+//					callback(topic, payload, len - llen - 3 - tl);
+				} else if (type == ONIONPINGREQ) {
+				    // Functionize this
+					buffer[0] = ONIONPINGRESP;
 					buffer[1] = 0;
+					buffer[2] = 0;
 					_client->write(buffer, 2);
-				} else if (type == MQTTPINGRESP) {
+				} else if (type == ONIONPINGRESP) {
 					pingOutstanding = false;
 				}
 			}
 		}
 		return true;
 	} else {
-		this->connect(deviceId, deviceId, deviceKey);
+		this->connect(deviceId, deviceKey);
 	}
 }
 
@@ -319,21 +302,14 @@ uint8_t OnionClient::readByte() {
 	return _client->read();
 }
 
-uint16_t OnionClient::readPacket(uint8_t* lengthLength) {
+uint16_t OnionClient::readPacket() {
 	uint16_t len = 0;
 	buffer[len++] = readByte();
-	uint8_t multiplier = 1;
-	uint16_t length = 0;
-	uint8_t digit = 0;
-	do {
-		digit = readByte();
-		buffer[len++] = digit;
-		length += (digit & 127) * multiplier;
-		multiplier *= 128;
-	} while ((digit & 128) != 0);
-	*lengthLength = len - 1;
+	buffer[len++] = readByte();
+	buffer[len++] = readByte();
+	uint16_t length = (buffer[1] << 8) + (buffer[0]);
 	for (uint16_t i = 0; i < length; i++) {
-		if (len < MQTT_MAX_PACKET_SIZE) {
+		if (len < ONION_MAX_PACKET_SIZE) {
 			buffer[len++] = readByte();
 		} else {
 			readByte();
@@ -344,31 +320,29 @@ uint16_t OnionClient::readPacket(uint8_t* lengthLength) {
 	return len;
 }
 
-boolean OnionClient::write(uint8_t header, uint8_t* buf, uint16_t length) {
-	uint8_t lenBuf[4];
-	uint8_t llen = 0;
-	uint8_t digit;
-	uint8_t pos = 0;
-	uint8_t rc;
-	uint8_t len = length;
-	do {
-		digit = len % 128;
-		len = len / 128;
-		if (len > 0) {
-			digit |= 0x80;
-		}
-		lenBuf[pos++] = digit;
-		llen++;
-	} while(len > 0);
 
-	buf[4-llen] = header;
-	for (int i = 0; i < llen; i++) {
-		buf[5-llen+i] = lenBuf[i];
-	}
-	rc = _client->write(buf + (4 - llen), length + 1 + llen);
+void OnionClient::sendPingRequest(void) {
+    
+}
+
+void OnionClient::sendPingResponse(void) {
+    
+}
+
+void OnionClient::parsePublishData(uint8_t *buf) {
+    
+}
+
+boolean OnionClient::write(uint8_t header, uint8_t* buf, uint16_t length) {
+	uint8_t rc;
+	
+	buf[0] = header;
+	buf[1] = length /256;
+	buf[2] = length %256;
+	rc = _client->write(buf, length + 3);
    
 	lastOutActivity = millis();
-	return (rc == 1 + llen + length);
+	return (rc == 3 + length);
 }
 
 uint16_t OnionClient::writeString(char* string, uint8_t* buf, uint16_t pos) {
