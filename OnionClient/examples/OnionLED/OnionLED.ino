@@ -21,9 +21,9 @@ void setup() {
   pinMode(7, OUTPUT);
   
   Ethernet.begin(mac);
-  client.begin();
   client.get("/on", on);
   client.get("/off", off); 
+  client.begin();
 }
 
 void loop() {

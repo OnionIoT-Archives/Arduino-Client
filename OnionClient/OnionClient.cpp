@@ -1,4 +1,6 @@
 #include "OnionClient.h"
+#include "msgpack.h"
+#include <stdio.h>
 
 char OnionClient::domain[] = "zh.onion.io";
 uint16_t OnionClient::port = 2721;
@@ -16,27 +18,43 @@ OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->remoteFunctions = new remoteFunction[1];
 	this->remoteFunctions[0] = NULL;
 	this->totalFunctions = 1;
+	this->lastSubscription = NULL;
+	totalSubscriptions = 0;
 	_client = new RPEthernetClient();
 }
 
 void OnionClient::begin() {
-	char* topic = new char[strlen(deviceId) + 2];
-	topic[0] = 0;
-	strcat(topic, "/");
-	strcat(topic, deviceId);
-
-	char* init = new char[strlen(deviceId) + 11];
-	init[0] = 0;
-	strcat(init, deviceId);
-	strcat(init, ";CONNECTED");
-
 	if (connect(deviceId, deviceKey)) {
 		//publish("/register", init);
-		//subscribe(topic);
+		subscribe();
 	}
-
-	delete[] init;
-	delete[] topic;
+////	msgpack_sbuffer sbuf;
+////	msgpack_sbuffer_init(&sbuf);
+////
+////	/* serialize values into the buffer using msgpack_sbuffer_write callback function. */
+////	msgpack_packer pk;
+////	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+////
+////	msgpack_pack_array(&pk, 3);
+////	msgpack_pack_int(&pk, 1);
+////	msgpack_pack_true(&pk);
+////	msgpack_pack_raw(&pk, 7);
+////	msgpack_pack_raw_body(&pk, "example", 7);
+////
+////	/* deserialize the buffer into msgpack_object instance. */
+////	/* deserialized object is valid during the msgpack_zone instance alive. */
+////	msgpack_zone mempool;
+////	msgpack_zone_init(&mempool, 2048);
+////
+////	msgpack_object deserialized;
+////	msgpack_unpack(sbuf.data, sbuf.size, NULL, &mempool, &deserialized);
+////
+////	/* print the deserialized object. */
+////	msgpack_object_print(stdout, deserialized);
+////	puts("");
+////
+////	msgpack_zone_destroy(&mempool);
+////	msgpack_sbuffer_destroy(&sbuf);
 }
 
 boolean OnionClient::connect(char* id, char* key) {
@@ -47,13 +65,19 @@ boolean OnionClient::connect(char* id, char* key) {
 			nextMsgId = 1;
 		
 			uint8_t *ptr = buffer;
-			uint16_t length = ONION_HEADER_CONNECT_LENGTH;
-			memcpy(ptr,OnionClient::connectHeader,length);
-			ptr += length;
+			ptr += 3;
+//			uint16_t length = ONION_HEADER_CONNECT_LENGTH;
+//			memcpy(ptr,OnionClient::connectHeader,length);
+//			ptr += length;
+            uint16_t length = 2;
+            *ptr++ = 0x93;
+            *ptr++ = 0x01;
+            *ptr++ = 0xA8;
 			memcpy(ptr,id,8);
 			ptr += 8;
+            *ptr++ = 0xB0;
 			memcpy(ptr,key,16);
-            length += 24;
+            length += 26;
 			write(ONIONCONNECT, buffer, length);
          
 			lastInActivity = lastOutActivity = millis();
@@ -89,8 +113,25 @@ boolean OnionClient::connected() {
 	return rc;
 }
 
-char* OnionClient::registerFunction(remoteFunction function) {
+char* OnionClient::registerFunction(char * endpoint, remoteFunction function, char** params, uint8_t param_count) {
 	remoteFunction* resized = new remoteFunction[totalFunctions + 1];
+	if (lastSubscription == NULL) {
+	    subscriptions.id = totalFunctions;
+	    subscriptions.endpoint = endpoint;
+	    subscriptions.params = params;
+	    subscriptions.param_count = param_count;
+	    lastSubscription = &subscriptions;
+	} else {
+	    subscription_t* new_sub = malloc(sizeof(subscription_t));
+	    new_sub->id = totalFunctions;
+	    new_sub->endpoint = endpoint;
+	    new_sub->params = params;
+	    new_sub->param_count = param_count;
+	    new_sub->next = NULL;
+	    lastSubscription->next = new_sub;
+	    lastSubscription = new_sub; 
+	}
+	totalSubscriptions++;
 	
 	for (int i = 0; i < totalFunctions; i++) {
 		resized[i] = remoteFunctions[i];
@@ -102,6 +143,8 @@ char* OnionClient::registerFunction(remoteFunction function) {
 	delete [] remoteFunctions;
 	remoteFunctions = resized;
 	
+	
+	
 	char* idStr = new char[6];
 	idStr[0] = 0;
 	sprintf(idStr, "%d", totalFunctions);
@@ -110,39 +153,6 @@ char* OnionClient::registerFunction(remoteFunction function) {
 	return idStr;
 };
 
-void OnionClient::get(char* endpoint, remoteFunction function) {
-	char* functionId = registerFunction(function);
-	char* payload = new char[strlen(deviceId) + strlen(endpoint) + strlen(functionId) + 7];
-	payload[0] = 0;
-
-	strcat(payload, deviceId);
-	strcat(payload, ";GET;");
-	strcat(payload, endpoint);
-	strcat(payload, ";");
-	strcat(payload, functionId);
-	publish("/register", payload);
-	
-	delete[] functionId;
-	delete[] payload;
-}
-
-void OnionClient::post(char* endpoint, remoteFunction function, char* dataStructure) {
-	char* functionId = registerFunction(function);
-	char* payload = new char[strlen(deviceId) + strlen(dataStructure) + strlen(endpoint) + strlen(functionId) + 10];
-	payload[0] = 0;
-
-	strcat(payload, deviceId);
-	strcat(payload, ";POST;");
-	strcat(payload, endpoint);
-	strcat(payload, ";");
-	strcat(payload, functionId);
-	strcat(payload, ";");
-	strcat(payload, dataStructure);
-	publish("/register", payload);
-	
-	delete[] functionId;
-	delete[] payload;
-}
 
 void OnionClient::update(char* endpoint, float val) {
 
@@ -229,19 +239,38 @@ boolean OnionClient::publish(char* topic, char* payload) {
 	return false;
 }
 
-boolean OnionClient::subscribe(char* topic) {
+boolean OnionClient::subscribe() {
 	if (connected()) {
-		// Leave room in the buffer for header and variable length field
-		uint16_t length = 5;
-		nextMsgId++;
-		if (nextMsgId == 0) {
-			nextMsgId = 1;
-		}
-		buffer[length++] = (nextMsgId >> 8);
-		buffer[length++] = (nextMsgId & 0xFF);
-		length = writeString(topic, buffer, length);
-		buffer[length++] = 0; // Only do QoS 0 subs
-		return write(ONIONSUBSCRIBE | ONIONQOS1, buffer, length - 5);
+	    // Generate 
+	    if (totalSubscriptions > 0) {
+	        msgpack_sbuffer sbuf;
+        	msgpack_sbuffer_init(&sbuf);
+        
+        	/* serialize values into the buffer using msgpack_sbuffer_write callback function. */
+        	msgpack_packer pk;
+        	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+        
+        	msgpack_pack_array(&pk, totalSubscriptions);
+        	subscription_t *sub_ptr = &subscriptions;
+        	uint8_t param_count = 0;
+        	uint8_t string_len = 0;
+        	for (uint8_t i=0;i<totalSubscriptions;i++) {
+        	    param_count = sub_ptr->param_count;
+        	    msgpack_pack_array(&pk, param_count+2);
+        	    string_len = strlen(sub_ptr->endpoint);
+        	    msgpack_pack_raw(&pk, string_len);
+        	    msgpack_pack_raw_body(&pk, sub_ptr->endpoint,string_len);
+        	    msgpack_pack_int(&pk, sub_ptr->id);
+        	    for (uint8_t j=0;j<sub_ptr->param_count;j++) {
+            	    string_len = strlen(sub_ptr->params[j]);
+            	    msgpack_pack_raw(&pk, string_len);
+            	    msgpack_pack_raw_body(&pk, sub_ptr->params[j],string_len);
+        	    }
+        	}
+	        
+    		return write(ONIONSUBSCRIBE, sbuf.data, sbuf.size);
+	    }
+	    
 	}
 	return false;
 }
@@ -269,8 +298,9 @@ boolean OnionClient::loop() {
 				lastInActivity = t;
 				uint8_t type = buffer[0] & 0xF0;
 				if (type == ONIONPUBLISH) {
+				    uint16_t len = (buffer[1]<<8)+(buffer[2]);
 				    // Parse Msg Pack
-				    parsePublishData(buffer+3);
+				    parsePublishData(buffer+3,len-3);
 //					uint16_t tl = (buffer[] << 8) + buffer[llen + 2];
 //					char topic[tl + 1];
 //					for (uint16_t i=0; i < tl; i++) {
@@ -293,7 +323,10 @@ boolean OnionClient::loop() {
 		}
 		return true;
 	} else {
-		this->connect(deviceId, deviceKey);
+	    unsigned long t = millis();
+		if (t - lastOutActivity > ONION_KEEPALIVE * 1000UL) {
+		    this->connect(deviceId, deviceKey);
+		}
 	}
 }
 
@@ -329,8 +362,22 @@ void OnionClient::sendPingResponse(void) {
     
 }
 
-void OnionClient::parsePublishData(uint8_t *buf) {
-    
+void OnionClient::parsePublishData(uint8_t *buf, uint16_t len) {
+    msgpack_zone mempool;
+	msgpack_zone_init(&mempool, 256);
+
+	msgpack_object deserialized;
+	msgpack_unpack(buf, len, NULL, &mempool, &deserialized);
+	uint8_t count = deserialized.via.array.size;
+	uint8_t function_id = deserialized.via.array.ptr[0].via.u64;
+	
+	OnionParams* params = NULL;
+	if (count > 1) {
+	    // Get parameters
+	}
+	if (function_id < totalFunctions) {
+	    remoteFunctions[function_id](params);
+	}
 }
 
 boolean OnionClient::write(uint8_t header, uint8_t* buf, uint16_t length) {

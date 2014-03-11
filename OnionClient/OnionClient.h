@@ -37,27 +37,31 @@
 #define ONIONQOS2        		(2 << 1)
 
 typedef void(*remoteFunction)(OnionParams*);
-
+typedef struct {
+    uint8_t id;
+    char* endpoint;
+    char** params;
+    uint8_t param_count;
+    subscription_t* next;
+} subscription_t
 class OnionClient {
 
 public:
 	OnionClient(char*, char*);
 	void begin();
-	void get(char*, remoteFunction);
-	void post(char*, remoteFunction, char*);
-        void update(char*, float);
+	char* registerFunction(char*, remoteFunction);
+    void update(char*, float);
 	boolean loop();
 
 protected:
 	void callback(char*, uint8_t*, unsigned int);
-	void parsePublishData(uint8_t *buf);
+	void parsePublishData(uint8_t *buf, uint16_t len);
 	void sendPingRequest(void);
 	void sendPingResponse(void);
-	char* registerFunction(remoteFunction);
 	boolean connect(char*, char*);
 	boolean connected();
 	boolean publish(char*, char*);
-	boolean subscribe(char*);
+	boolean subscribe();
 	uint16_t readPacket();
 	uint8_t readByte();
 	boolean write(uint8_t, uint8_t*, uint16_t);
@@ -76,6 +80,9 @@ protected:
 
 	// Array of functions registered as remote functions and length
 	remoteFunction* remoteFunctions;
+	subscription_t subscriptions;
+	subscription_t* lastSubscription;
+	uint8_t totalSubscriptions;
 	unsigned int totalFunctions;
 	Client* _client;
 	char* deviceId;
