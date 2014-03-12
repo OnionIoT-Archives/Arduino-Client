@@ -9,6 +9,7 @@ const char OnionClient::connectHeader[ONION_HEADER_CONNECT_LENGTH] = { 'O','n','
 
 const char testOn[] = {0x91,0x01};
 const char testOff[] = {0x91,0x02};
+const char testPrint[] = {0x94,0x03,0xA3,'O','n','e',0xA3,'T','w','o',0xA5,'T','h','r','e','e'};
 
 OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
@@ -369,7 +370,8 @@ boolean OnionClient::loop() {
 				} else if (type == ONIONPINGRESP) {
 					pingOutstanding = false;
 				} else if (type == ONIONSUBACK) {
-				    parsePublishData(testOn,2);
+				    //parsePublishData(testOn,2);
+				    parsePublishData(testPrint,16);
 				}
 			}
 		}
@@ -436,9 +438,13 @@ void OnionClient::parsePublishData(const char *buf, uint16_t len) {
 	uint8_t count = deserialized.via.array.size;
 	uint8_t function_id = deserialized.via.array.ptr[0].via.u64;
 	
-	OnionParams* params = NULL;
+	OnionParams* params = new OnionParams(count-1);
 	if (count > 1) {
 	    // Get parameters
+	    for (uint8_t i=0;i<(count-1);i++) {
+	        msgpack_object_raw raw = deserialized.via.array.ptr[i+1].via.raw;
+	        params->setStr(i,(char *)raw.ptr,(uint8_t)raw.size);
+	    }
 	}
 	if (function_id < totalFunctions) {
 	    remoteFunctions[function_id](params);
