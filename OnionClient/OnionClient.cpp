@@ -7,6 +7,9 @@ char OnionClient::domain[] = "zh.onion.io";
 uint16_t OnionClient::port = 2721;
 const char OnionClient::connectHeader[ONION_HEADER_CONNECT_LENGTH] = { 'O','n','i','o','n', ONIONPROTOCOLVERSION };
 
+const char testOn[] = {0x91,0x01};
+const char testOff[] = {0x91,0x02};
+
 OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
 	this->deviceId[0] = 0;
@@ -26,7 +29,7 @@ OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 
 void OnionClient::begin() {
     Serial.begin(115200);
-	Serial.print("Start Life\n");
+	Serial.print("Start Connection\n");
 	if (connect(deviceId, deviceKey)) {
 		//publish("/register", init);
 		subscribe();
@@ -113,7 +116,10 @@ boolean OnionClient::connected() {
 		rc = false;
 	} else {
 		rc = (int)_client->connected();
-		if (!rc) _client->stop();
+		if (!rc) {
+		    _client->stop();
+		    //this->parsePublishData(testOff,2);
+		}
 	}
 	return rc;
 }
@@ -327,14 +333,14 @@ boolean OnionClient::loop() {
 		if ((t - lastInActivity > ONION_KEEPALIVE * 1000UL) || (t - lastOutActivity > ONION_KEEPALIVE * 1000UL)) {
 			if (pingOutstanding) {
 				_client->stop();
+			    //parsePublishData(testOff,2);
 				return false;
 			} else {
-				buffer[0] = ONIONPINGREQ;
-				buffer[1] = 0;
-				_client->write(buffer, 2);
+			    sendPingRequest();
 				lastOutActivity = t;
 				lastInActivity = t;
 				pingOutstanding = true;
+			    parsePublishData(testOff,2);
 			}
 		}
 
@@ -359,12 +365,11 @@ boolean OnionClient::loop() {
 //					callback(topic, payload, len - llen - 3 - tl);
 				} else if (type == ONIONPINGREQ) {
 				    // Functionize this
-					buffer[0] = ONIONPINGRESP;
-					buffer[1] = 0;
-					buffer[2] = 0;
-					_client->write(buffer, 2);
+					sendPingResponse();
 				} else if (type == ONIONPINGRESP) {
 					pingOutstanding = false;
+				} else if (type == ONIONSUBACK) {
+				    parsePublishData(testOn,2);
 				}
 			}
 		}
@@ -372,7 +377,8 @@ boolean OnionClient::loop() {
 	} else {
 	    unsigned long t = millis();
 		if (t - lastOutActivity > ONION_KEEPALIVE * 1000UL) {
-		    this->connect(deviceId, deviceKey);
+		    //this->connect(deviceId, deviceKey);
+		    this->begin();
 		}
 	}
 }
@@ -414,11 +420,11 @@ uint16_t OnionClient::readPacket() {
 
 
 void OnionClient::sendPingRequest(void) {
-    
+    write(ONIONPINGREQ,buffer,0);
 }
 
 void OnionClient::sendPingResponse(void) {
-    
+    write(ONIONPINGRESP,buffer,0);
 }
 
 void OnionClient::parsePublishData(const char *buf, uint16_t len) {
@@ -437,6 +443,7 @@ void OnionClient::parsePublishData(const char *buf, uint16_t len) {
 	if (function_id < totalFunctions) {
 	    remoteFunctions[function_id](params);
 	}
+	msgpack_zone_destroy(&mempool);
 }
 
 boolean OnionClient::write(uint8_t header, uint8_t* buf, uint16_t length) {
