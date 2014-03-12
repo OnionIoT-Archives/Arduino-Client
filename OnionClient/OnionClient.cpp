@@ -1,6 +1,7 @@
 #include "OnionClient.h"
 #include "msgpack.h"
 #include <stdio.h>
+#include <Arduino.h>
 
 char OnionClient::domain[] = "zh.onion.io";
 uint16_t OnionClient::port = 2721;
@@ -24,6 +25,8 @@ OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 }
 
 void OnionClient::begin() {
+    Serial.begin(115200);
+	Serial.print("Start Life\n");
 	if (connect(deviceId, deviceKey)) {
 		//publish("/register", init);
 		subscribe();
@@ -89,11 +92,13 @@ boolean OnionClient::connect(char* id, char* key) {
 					return false;
 				}
 			}
+			
 			uint16_t len = readPacket();
-
+             
 			if (len == 4 && buffer[3] == 0) {
 				lastInActivity = millis();
 				pingOutstanding = false;
+				
 				return true;
 			}
 		}
@@ -242,33 +247,74 @@ boolean OnionClient::publish(char* topic, char* payload) {
 boolean OnionClient::subscribe() {
 	if (connected()) {
 	    // Generate 
+	    
+	    Serial.print("Start Subscribe: #");
+	    Serial.print(totalSubscriptions);
+	    Serial.print("\n");
 	    if (totalSubscriptions > 0) {
-	        msgpack_sbuffer sbuf;
-        	msgpack_sbuffer_init(&sbuf);
-        
-        	/* serialize values into the buffer using msgpack_sbuffer_write callback function. */
-        	msgpack_packer pk;
-        	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
-        
-        	msgpack_pack_array(&pk, totalSubscriptions);
-        	subscription_t *sub_ptr = &subscriptions;
-        	uint8_t param_count = 0;
+	        uint8_t* ptr = buffer+3;
+	        subscription_t *sub_ptr = &subscriptions;
+	        *ptr++ = (0x90 + totalSubscriptions);
         	uint8_t string_len = 0;
-        	for (uint8_t i=0;i<totalSubscriptions;i++) {
-        	    param_count = sub_ptr->param_count;
-        	    msgpack_pack_array(&pk, param_count+2);
-        	    string_len = strlen(sub_ptr->endpoint);
-        	    msgpack_pack_raw(&pk, string_len);
-        	    msgpack_pack_raw_body(&pk, sub_ptr->endpoint,string_len);
-        	    msgpack_pack_int(&pk, sub_ptr->id);
-        	    for (uint8_t j=0;j<sub_ptr->param_count;j++) {
-            	    string_len = strlen(sub_ptr->params[j]);
-            	    msgpack_pack_raw(&pk, string_len);
-            	    msgpack_pack_raw_body(&pk, sub_ptr->params[j],string_len);
-        	    }
-        	}
-	        
-    		return write(ONIONSUBSCRIBE, (uint8_t*)sbuf.data, sbuf.size);
+        	uint8_t param_count = 0;
+	        for (uint8_t i=0;i<totalSubscriptions;i++) {
+	            param_count = sub_ptr->param_count;
+	            *ptr++ = (0x90 + param_count+2);
+	            string_len = strlen(sub_ptr->endpoint);
+	            *ptr++ = (0xA0 + string_len);
+	            memcpy(ptr,sub_ptr->endpoint,string_len);
+	            ptr += string_len;
+	            *ptr++ = (sub_ptr->id);
+	            for (uint8_t j=0;j<param_count;j++) {
+	                string_len = strlen(sub_ptr->params[j]);
+	                *ptr++ = (0xA0 + string_len);
+	                memcpy(ptr,sub_ptr->params[j],string_len);
+	                ptr += string_len;
+	            }
+	            sub_ptr = sub_ptr->next;
+	        }
+	        return write(ONIONSUBSCRIBE, buffer, ptr-buffer-3);
+//	        msgpack_sbuffer sbuf;
+//        	msgpack_sbuffer_init(&sbuf);
+//        
+//        	/* serialize values into the buffer using msgpack_sbuffer_write callback function. */
+//        	msgpack_packer pk;
+//        	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+//        
+//        	msgpack_pack_array(&pk, totalSubscriptions);
+//        	subscription_t *sub_ptr = &subscriptions;
+//        	uint8_t param_count = 0;
+//        	uint8_t string_len = 0;
+//        	for (uint8_t i=0;i<totalSubscriptions;i++) {
+//        	    param_count = sub_ptr->param_count;
+//        	    msgpack_pack_array(&pk, param_count+2);
+//        	    string_len = strlen(sub_ptr->endpoint);
+//        	    Serial.print("Sub Param Name = ");
+//        	    Serial.print(sub_ptr->endpoint);
+//        	    Serial.print(", Id = ");
+//        	    Serial.print(sub_ptr->id);
+//        	    Serial.print("\n");
+//        	    msgpack_pack_raw(&pk, string_len);
+//        	    msgpack_pack_raw_body(&pk, sub_ptr->endpoint,string_len);
+//        	    msgpack_pack_int(&pk, sub_ptr->id);
+//        	    for (uint8_t j=0;j<param_count;j++) {
+//            	    string_len = strlen(sub_ptr->params[j]);
+//            	    msgpack_pack_raw(&pk, string_len);
+//            	    msgpack_pack_raw_body(&pk, sub_ptr->params[j],string_len);
+//        	    }
+//        	}
+//        	Serial.print("Buf ");
+//        	Serial.print(sbuf.size);
+//        	
+//        	char* msg = (char *)malloc(sbuf.size+1);
+//        	memcpy(msg,sbuf.data,sbuf.size);
+//        	msg[sbuf.size] = 0;
+//        	
+//        	Serial.print("\nMsg=");
+//	        Serial.print(msg);
+//	        Serial.print("\n");
+//	        memcpy(buffer+3,sbuf.data,sbuf.size);
+//    		return write(ONIONSUBSCRIBE, buffer, sbuf.size);
 	    }
 	    
 	}
@@ -338,19 +384,31 @@ uint8_t OnionClient::readByte() {
 
 uint16_t OnionClient::readPacket() {
 	uint16_t len = 0;
-	buffer[len++] = readByte();
-	buffer[len++] = readByte();
-	buffer[len++] = readByte();
-	uint16_t length = (buffer[1] << 8) + (buffer[0]);
-	for (uint16_t i = 0; i < length; i++) {
-		if (len < ONION_MAX_PACKET_SIZE) {
-			buffer[len++] = readByte();
-		} else {
-			readByte();
-			len = 0; // This will cause the packet to be ignored.
-		}
-	}
-
+	
+	Serial.print("In readPacket\n");
+	if (_client->available() > 2) {
+	    Serial.print("Getting Data\n");
+    	buffer[len++] = readByte();
+    	buffer[len++] = readByte();
+    	buffer[len++] = readByte();
+    	uint16_t length = (buffer[1] << 8) + (buffer[2]);
+	    Serial.print("Packet Type=");
+	    Serial.print(buffer[0]);
+	    Serial.print(" Packet Length=");
+	    Serial.print(length);
+	    Serial.print("\n");
+	    if (length > 0) {
+        	for (uint16_t i = 0; i < length; i++) {
+        		if (len < ONION_MAX_PACKET_SIZE) {
+        			buffer[len++] = readByte();
+        		} else {
+        			readByte();
+        			len = 0; // This will cause the packet to be ignored.
+        		}
+        	}
+        }
+    }
+    Serial.print("Read Packet Competed\n");
 	return len;
 }
 
