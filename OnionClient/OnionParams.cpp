@@ -9,8 +9,9 @@ OnionParams::OnionParams(uint8_t count) {
 
 void OnionParams::setStr(uint8_t index,char* str,uint8_t len) {
     data[index] = new char[len+1];
-    memcpy(data[index],str,len);
-    data[index][len] = 0;
+    char* ptr = data[index];
+    memcpy(ptr,str,len);
+    ptr[len]= 0;
     length = len;
 }
 

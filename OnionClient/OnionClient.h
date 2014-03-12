@@ -51,6 +51,7 @@ public:
 	void begin();
 	char* registerFunction(char*, remoteFunction, char** params, uint8_t param_count);
     void update(char*, float);
+	boolean publish(char*, char*);
 	boolean loop();
 
 protected:
@@ -60,7 +61,6 @@ protected:
 	void sendPingResponse(void);
 	boolean connect(char*, char*);
 	boolean connected();
-	boolean publish(char*, char*);
 	boolean subscribe();
 	uint16_t readPacket();
 	uint8_t readByte();

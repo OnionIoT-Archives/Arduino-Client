@@ -33,6 +33,7 @@ void OnionClient::begin() {
 	Serial.print("Start Connection\n");
 	if (connect(deviceId, deviceKey)) {
 		//publish("/register", init);
+		publish("/onion","isAwesome");
 		subscribe();
 	}
 ////	msgpack_sbuffer sbuf;
@@ -234,19 +235,21 @@ void OnionClient::callback(char* topic, byte* payload, unsigned int length) {
 	delete params;
 }
 
-boolean OnionClient::publish(char* topic, char* payload) {
-	int plength = strlen(payload);
+boolean OnionClient::publish(char* key, char* value) {
+	int key_len = strlen(key);
+	int value_len = strlen(value);
 	if (connected()) {
-		// Leave room in the buffer for header and variable length field
-		uint16_t length = 5;
-		length = writeString(topic, buffer, length);
-		uint16_t i;
-		for (i = 0; i < plength; i++) {
-			buffer[length++] = payload[i];
-		}
-		uint8_t header = ONIONPUBLISH;
-
-		return write(header, buffer, length - 5);
+		uint16_t length = 0;
+		char* ptr = (char *)buffer+3;
+		*ptr++ = 0x81;
+		*ptr++ = 0xA0 + key_len;
+		memcpy(ptr,key,key_len);
+		ptr += key_len;
+		*ptr++ = 0xA0 + value_len;
+		memcpy(ptr,value,value_len);
+		ptr += value_len;
+		length = 3+value_len+key_len;
+		return write(ONIONPUBLISH, buffer, length);
 	}
 	return false;
 }
@@ -255,9 +258,6 @@ boolean OnionClient::subscribe() {
 	if (connected()) {
 	    // Generate 
 	    
-	    Serial.print("Start Subscribe: #");
-	    Serial.print(totalSubscriptions);
-	    Serial.print("\n");
 	    if (totalSubscriptions > 0) {
 	        uint8_t* ptr = buffer+3;
 	        subscription_t *sub_ptr = &subscriptions;
@@ -341,7 +341,6 @@ boolean OnionClient::loop() {
 				lastOutActivity = t;
 				lastInActivity = t;
 				pingOutstanding = true;
-			    parsePublishData(testOff,2);
 			}
 		}
 
@@ -351,27 +350,16 @@ boolean OnionClient::loop() {
 				lastInActivity = t;
 				uint8_t type = buffer[0] & 0xF0;
 				if (type == ONIONPUBLISH) {
-				    uint16_t len = (buffer[1]<<8)+(buffer[2]);
+				    uint16_t length = (buffer[1]<<8)+(buffer[2]);
 				    // Parse Msg Pack
 				    const char* ptr = (const char*)buffer+3;
-				    parsePublishData(ptr,len-3);
-//					uint16_t tl = (buffer[] << 8) + buffer[llen + 2];
-//					char topic[tl + 1];
-//					for (uint16_t i=0; i < tl; i++) {
-//						topic[i] = buffer[llen + 3 + i];
-//					}
-//					topic[tl] = 0;
-//					// ignore msgID - only support QoS 0 subs
-//					uint8_t *payload = buffer + llen + 3 + tl;
-//					callback(topic, payload, len - llen - 3 - tl);
+				    parsePublishData(ptr,length);
 				} else if (type == ONIONPINGREQ) {
 				    // Functionize this
 					sendPingResponse();
 				} else if (type == ONIONPINGRESP) {
 					pingOutstanding = false;
 				} else if (type == ONIONSUBACK) {
-				    //parsePublishData(testOn,2);
-				    parsePublishData(testPrint,16);
 				}
 			}
 		}
@@ -393,18 +381,18 @@ uint8_t OnionClient::readByte() {
 uint16_t OnionClient::readPacket() {
 	uint16_t len = 0;
 	
-	Serial.print("In readPacket\n");
+	//Serial.print("In readPacket\n");
 	if (_client->available() > 2) {
-	    Serial.print("Getting Data\n");
+	    //Serial.print("Getting Data\n");
     	buffer[len++] = readByte();
     	buffer[len++] = readByte();
     	buffer[len++] = readByte();
     	uint16_t length = (buffer[1] << 8) + (buffer[2]);
-	    Serial.print("Packet Type=");
-	    Serial.print(buffer[0]);
-	    Serial.print(" Packet Length=");
-	    Serial.print(length);
-	    Serial.print("\n");
+	    //Serial.print("Packet Type=");
+	    //Serial.print(buffer[0]);
+	    //Serial.print(" Packet Length=");
+	    //Serial.print(length);
+	    //Serial.print("\n");
 	    if (length > 0) {
         	for (uint16_t i = 0; i < length; i++) {
         		if (len < ONION_MAX_PACKET_SIZE) {
@@ -416,7 +404,7 @@ uint16_t OnionClient::readPacket() {
         	}
         }
     }
-    Serial.print("Read Packet Competed\n");
+    //Serial.print("Read Packet Competed\n");
 	return len;
 }
 
@@ -430,6 +418,9 @@ void OnionClient::sendPingResponse(void) {
 }
 
 void OnionClient::parsePublishData(const char *buf, uint16_t len) {
+    Serial.print("Publish Start\nLen=");
+    Serial.print(len);
+    Serial.print("\n");
     msgpack_zone mempool;
 	msgpack_zone_init(&mempool, 256);
 
@@ -437,13 +428,23 @@ void OnionClient::parsePublishData(const char *buf, uint16_t len) {
 	msgpack_unpack(buf, len, NULL, &mempool, &deserialized);
 	uint8_t count = deserialized.via.array.size;
 	uint8_t function_id = deserialized.via.array.ptr[0].via.u64;
-	
 	OnionParams* params = new OnionParams(count-1);
+    Serial.print("Param Count=");
+    Serial.print(count-1);
+    Serial.print("\n");
+    char* msg = (char*)malloc(32);
 	if (count > 1) {
 	    // Get parameters
 	    for (uint8_t i=0;i<(count-1);i++) {
+        	//Serial.print("param id=");
+            //Serial.print(i);
+            //Serial.print(", value=");
 	        msgpack_object_raw raw = deserialized.via.array.ptr[i+1].via.raw;
 	        params->setStr(i,(char *)raw.ptr,(uint8_t)raw.size);
+	        memcpy(msg,raw.ptr,raw.size);
+	        msg[raw.size] = 0;
+            //Serial.print(msg);
+            //Serial.print("\n");
 	    }
 	}
 	if (function_id < totalFunctions) {
