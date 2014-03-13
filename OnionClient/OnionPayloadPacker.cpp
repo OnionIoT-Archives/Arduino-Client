@@ -1,5 +1,8 @@
 #include "OnionPayloadPacker.h"
 #include "msgpack_types.h"
+#include <stdint.h>
+#include <string.h>
+#include <stdio.h>
 
 
 OnionPayloadPacker::OnionPayloadPacker(char* buffer,unsigned int max_length) {
@@ -12,11 +15,11 @@ OnionPayloadPacker::~OnionPayloadPacker() {
     
 }
 
-void  OnionPaylaodPacker::packArray(int length) {
+void  OnionPayloadPacker::packArray(int length) {
     // First ensure the buffer isn't full
     if (len<max_len) {
         if (length < 16) {
-            buf[len++] = MSGPACK_FIXARRAY_HEAD + length;
+            buf[len++] = (uint8_t)(MSGPACK_FIXARRAY_HEAD + length);
         } else if (length < 65536) {
             // Ensure we have at least 3 bytes
             if (len+2<max_len) {               
@@ -37,7 +40,7 @@ void  OnionPaylaodPacker::packArray(int length) {
     }
 }
 
-void  OnionPaylaodPacker::packMap(int length) {
+void  OnionPayloadPacker::packMap(int length) {
     // First ensure the buffer isn't full
     if (len<max_len) {
         if (length < 16) {
@@ -62,7 +65,7 @@ void  OnionPaylaodPacker::packMap(int length) {
     }
 }
 
-void  OnionPaylaodPacker::packInt(int i) {
+void  OnionPayloadPacker::packInt(int i) {
     union {int16_t i;uint8_t byte[2];} i16;
     // First ensure the buffer isn't full
     if (len<max_len) {
@@ -101,12 +104,12 @@ void  OnionPaylaodPacker::packInt(int i) {
     }
 }
 
-void  OnionPaylaodPacker::packStr(char* c) {
+void  OnionPayloadPacker::packStr(char* c) {
     int len = strlen(c);
     packStr(c,len);
 }
 
-void  OnionPaylaodPacker::packStr(char* c, int length) {
+void  OnionPayloadPacker::packStr(char* c, int length) {
     // First ensure the buffer isn't full
     if (len+length<max_len) {
         if (length < 32) {
@@ -134,16 +137,16 @@ void  OnionPaylaodPacker::packStr(char* c, int length) {
     }
 }
 
-void  OnionPaylaodPacker::packNil() {
+void  OnionPayloadPacker::packNil() {
     // First ensure the buffer isn't full
-    if (len+length<max_len) {
+    if (len<max_len) {
         buf[len++] = MSGPACK_NIL_HEAD;
     }
 }
 
-void  OnionPaylaodPacker::packBool(bool b) {
+void  OnionPayloadPacker::packBool(bool b) {
     // First ensure the buffer isn't full
-    if (len+length<max_len) {
+    if (len<max_len) {
         if (b) {
             buf[len++] = MSGPACK_TRUE_HEAD;
         } else {
@@ -152,10 +155,10 @@ void  OnionPaylaodPacker::packBool(bool b) {
     }
 }
 
-int   OnionPaylaodPacker::getLength(void) {
+int   OnionPayloadPacker::getLength(void) {
     return this->len;
 }
 
-char* OnionPaylaodPacker::getBuffer(void) {
+char* OnionPayloadPacker::getBuffer(void) {
     return this->buf;
 }

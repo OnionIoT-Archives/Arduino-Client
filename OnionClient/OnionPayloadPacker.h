@@ -1,8 +1,6 @@
 #ifndef ONION_PAYLOAD_PACKER_H
 #define ONION_PAYLOAD_PACKER_H
 
-#include <Arduino.h>
-
 class OnionPayloadPacker {
 public:
 	OnionPayloadPacker(char* buffer,unsigned int max_length);
