@@ -4,15 +4,28 @@
 #include <string.h>
 #include <stdio.h>
 
+OnionPayloadPacker::OnionPayloadPacker(OnionPacket* pkt) {
+    this->buf = pkt->getPayload();
+    this->max_len = pkt->getPayloadMaxLength();
+    this->len = pkt->getPayloadLength();
+    this->pkt = pkt;
+}
 
 OnionPayloadPacker::OnionPayloadPacker(char* buffer,unsigned int max_length) {
     this->buf = buffer;
     this->max_len = max_length;
     this->len = 0;
+    this->pkt = 0;
 }
 
 OnionPayloadPacker::~OnionPayloadPacker() {
     
+}
+
+void OnionPayloadPacker::updatePacketLength() {
+    if (pkt != 0) {
+        pkt->setPayloadLength(len);
+    }
 }
 
 void  OnionPayloadPacker::packArray(int length) {
@@ -37,6 +50,7 @@ void  OnionPayloadPacker::packArray(int length) {
                 buf[len++] = length & 0xFF;
             }
         }
+        updatePacketLength();
     }
 }
 
@@ -62,6 +76,7 @@ void  OnionPayloadPacker::packMap(int length) {
                 buf[len++] = length & 0xFF;
             }
         }
+        updatePacketLength();
     }
 }
 
@@ -101,12 +116,14 @@ void  OnionPayloadPacker::packInt(int i) {
                 buf[len++] = i32.byte[3];
             }
         }
+        updatePacketLength();
     }
 }
 
 void  OnionPayloadPacker::packStr(char* c) {
     int len = strlen(c);
     packStr(c,len);
+    updatePacketLength();
 }
 
 void  OnionPayloadPacker::packStr(char* c, int length) {
@@ -134,6 +151,7 @@ void  OnionPayloadPacker::packStr(char* c, int length) {
             memcpy(buf+len,c,length);
             len+=length;
         }
+        updatePacketLength();
     }
 }
 
@@ -141,6 +159,7 @@ void  OnionPayloadPacker::packNil() {
     // First ensure the buffer isn't full
     if (len<max_len) {
         buf[len++] = MSGPACK_NIL_HEAD;
+        updatePacketLength();
     }
 }
 
@@ -152,6 +171,7 @@ void  OnionPayloadPacker::packBool(bool b) {
         } else {
             buf[len++] = MSGPACK_FALSE_HEAD;
         }
+        updatePacketLength();
     }
 }
 

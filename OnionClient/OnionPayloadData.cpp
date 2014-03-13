@@ -40,8 +40,8 @@ void OnionPayloadData::init(OnionPacket* pkt,unsigned int offset) {
     this->dataObjectArray = 0;
     this->pkt = pkt;
     this->offset = offset;
-    this->rawBuffer = pkt->getBuffer() + offset;
-    this->rawLength = pkt->getLength() - offset;
+    this->rawBuffer = pkt->getPayload() + offset;
+    this->rawLength = pkt->getPayloadLength() - offset;
     this->dataIsObject = false;
     //printf("->init: pkt->length = %d , offset = %d, rawLength = %d\n",pkt->getLength(), offset,this->rawLength);
 }

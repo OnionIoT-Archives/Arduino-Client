@@ -8,8 +8,9 @@
 
 main() {
     std::cout << "Hello World!\n";
-    char buffer[200];
-    OnionPayloadPacker *packer = new OnionPayloadPacker(buffer,200);
+//    char buffer[200];
+    OnionPacket* packet = new OnionPacket(200);
+    OnionPayloadPacker *packer = new OnionPayloadPacker(packet);
     packer->packArray(3);
     packer->packInt(1);
     //packer->packInt(2);
@@ -17,12 +18,14 @@ main() {
     packer->packStr("One"); 
     packer->packArray(1);
     packer->packStr("Two");
-    int size = packer->getLength();
-    //buffer[0] = 0x10;
-    //buffer[1] = 0x00;
-    //buffer[2] = size;
-    //size+= 3;
-    
+    int size = packet->getBufferLength();
+    packet->setType(0x30);
+    packet->updateLength();
+//    buffer[0] = 0x10;
+//    buffer[1] = 0x00;
+//    buffer[2] = size;
+//    size+= 3;
+    char* buffer = packet->getBuffer();
     char* buf_str = (char*) malloc (2*size + 1);
     char* buf_ptr = buf_str;
     for (int i = 0; i < size; i++)
@@ -35,7 +38,8 @@ main() {
     printf("%s", buf_str);
     
     // Now unpack the data
-    OnionPacket* pkt = new OnionPacket(buffer,size);
+    //OnionPacket* pkt = new OnionPacket(buffer,size);
+    OnionPacket* pkt = packet;
     //printf("Packet length = %d\n",pkt->getLength());
     //OnionPayloadData* data = new OnionPayloadData(pkt);
     OnionPayloadData* data = new OnionPayloadData();

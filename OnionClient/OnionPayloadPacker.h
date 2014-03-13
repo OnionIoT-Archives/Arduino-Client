@@ -1,8 +1,11 @@
 #ifndef ONION_PAYLOAD_PACKER_H
 #define ONION_PAYLOAD_PACKER_H
 
+#include "OnionPacket.h"
+
 class OnionPayloadPacker {
 public:
+	OnionPayloadPacker(OnionPacket* pkt);
 	OnionPayloadPacker(char* buffer,unsigned int max_length);
 	~OnionPayloadPacker();
 	void packArray(int len);
@@ -19,6 +22,8 @@ private:
 	char* buf;
 	unsigned int len;
 	unsigned int max_len;
+	OnionPacket* pkt;
+	void updatePacketLength();
 };
 
 #endif
