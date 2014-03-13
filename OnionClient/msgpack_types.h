@@ -3,6 +3,7 @@
 
 #define MSGPACK_FIXINT_HEAD         0x00
 #define MSGPACK_FIXMAP_HEAD         0x80
+#define MSGPACK_FIXARRAY_HEAD       0x90
 #define MSGPACK_FIXSTR_HEAD         0xA0
 #define MSGPACK_NIL_HEAD            0xC0
 #define MSGPACK_FALSE_HEAD          0xC2
@@ -23,11 +24,11 @@
 #define MSGPACK_INT16_HEAD          0xD1
 #define MSGPACK_INT32_HEAD          0xD2
 #define MSGPACK_INT64_HEAD          0xD3
-#define MSGPACK_EXT1_HEAD           0xD4
-#define MSGPACK_EXT2_HEAD           0xD5
-#define MSGPACK_EXT4_HEAD           0xD6
-#define MSGPACK_EXT8_HEAD           0xD7
-#define MSGPACK_EXT16_HEAD          0xD8
+#define MSGPACK_FIXEXT1_HEAD        0xD4
+#define MSGPACK_FIXEXT2_HEAD        0xD5
+#define MSGPACK_FIXEXT4_HEAD        0xD6
+#define MSGPACK_FIXEXT8_HEAD        0xD7
+#define MSGPACK_FIXEXT16_HEAD       0xD8
 #define MSGPACK_STR8_HEAD           0xD9
 #define MSGPACK_STR16_HEAD          0xDA
 #define MSGPACK_STR32_HEAD          0xDB
