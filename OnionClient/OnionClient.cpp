@@ -1,5 +1,4 @@
 #include "OnionClient.h"
-#include "msgpack.h"
 #include "OnionPacket.h"
 #include "OnionPayloadData.h"
 #include "OnionPayloadPacker.h"
