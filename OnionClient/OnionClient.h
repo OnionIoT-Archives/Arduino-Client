@@ -50,13 +50,13 @@ public:
 	OnionClient(char*, char*);
 	void begin();
 	char* registerFunction(char*, remoteFunction, char** params, uint8_t param_count);
-    void update(char*, float);
+    void update(uint8_t*, float);
 	boolean publish(char*, char*);
 	boolean loop();
 
 protected:
-	void callback(char*, uint8_t*, unsigned int);
-	void parsePublishData(const char *buf, uint16_t len);
+	void callback(uint8_t*, uint8_t*, unsigned int);
+	void parsePublishData(const uint8_t *buf, uint16_t len);
 	void sendPingRequest(void);
 	void sendPingResponse(void);
 	boolean connect(char*, char*);
@@ -64,8 +64,8 @@ protected:
 	boolean subscribe();
 	uint16_t readPacket();
 	uint8_t readByte();
-	boolean write(uint8_t, uint8_t*, uint16_t);
-	uint16_t writeString(char*, uint8_t*, uint16_t);
+//	boolean write(uint8_t, uint8_t*, uint16_t);
+//	uint16_t writeString(uint8_t*, uint8_t*, uint16_t);
 	
 	uint8_t buffer[ONION_MAX_PACKET_SIZE];
 	uint16_t nextMsgId;
@@ -76,7 +76,7 @@ protected:
 	// Static data for connecting to Onion
 	static char domain[];
 	static uint16_t port;
-	static const char connectHeader[ONION_HEADER_CONNECT_LENGTH];
+	static const uint8_t connectHeader[ONION_HEADER_CONNECT_LENGTH];
 
 	// Array of functions registered as remote functions and length
 	remoteFunction* remoteFunctions;

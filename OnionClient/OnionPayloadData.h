@@ -22,9 +22,9 @@ public:
 	// getLength() will return the number of items in an array or map, will return 1 for other data
 	// and 0 for any data that could not be parsed correctly.
 	int getLength(void);
-	// getBuffer() will return a char* pointer to the data parse in the object. Useful for
+	// getBuffer() will return a uint8_t* pointer to the data parse in the object. Useful for
 	// getting a pointer to a string/binary/raw data type
-	char* getBuffer(void);
+	uint8_t* getBuffer(void);
 	// ???  Should I add a getString to make sure the data has a null terminated string? Might be nice to be able to
 	// ???  pass an output directly to str functions
 	// getInt() will return the raw parse data as an int.  If the type is not int it will return 0
@@ -44,7 +44,7 @@ protected:
 private:
 	OnionPacket* pkt;
 	unsigned int offset;
-	char* rawBuffer;
+	uint8_t* rawBuffer;
 	int rawLength;
 	uint8_t type;
 	int length;

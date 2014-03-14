@@ -89,8 +89,8 @@ int OnionPayloadData::unpack(void) {
     } else if ((rawType & 0xE0) == MSGPACK_FIXSTR_HEAD) {
         type = MSGPACK_FIXSTR_HEAD;
         length = rawType & 0x1F;
-        data = new char[length+1];
-        char* ptr = (char*) data;
+        data = new uint8_t[length+1];
+        uint8_t* ptr = (uint8_t*) data;
         memcpy(ptr,rawBuffer+1,length);
         // Do I really need to add this null? probably, but may not be necessary
         ptr[length] = 0;
@@ -250,10 +250,10 @@ int OnionPayloadData::getLength(void) {
     return this->length;
 }
 
-// getBuffer() will return a char* pointer to the data parse in the object. Useful for
+// getBuffer() will return a uint8_t* pointer to the data parse in the object. Useful for
 // getting a pointer to a string/binary/raw data type
-char* OnionPayloadData::getBuffer(void) {
-    char *ptr = (char*) data;
+uint8_t* OnionPayloadData::getBuffer(void) {
+    uint8_t *ptr = (uint8_t*) data;
     return ptr;
 }
 
@@ -393,12 +393,12 @@ void OnionPayloadData::unpackBool(void) {
 //    }
 //}
 //
-//void  OnionPayloadData::packStr(char* c) {
+//void  OnionPayloadData::packStr(uint8_t* c) {
 //    int len = strlen(c);
 //    packStr(c,len);
 //}
 //
-//void  OnionPayloadData::packStr(char* c, int length) {
+//void  OnionPayloadData::packStr(uint8_t* c, int length) {
 //    // First ensure the buffer isn't full
 //    if (len+length<max_len) {
 //        if (length < 32) {
@@ -448,6 +448,6 @@ void OnionPayloadData::unpackBool(void) {
 //    return this->len;
 //}
 //
-//char* OnionPayloadData::getBuffer(void) {
+//uint8_t* OnionPayloadData::getBuffer(void) {
 //    return this->buf;
 //}

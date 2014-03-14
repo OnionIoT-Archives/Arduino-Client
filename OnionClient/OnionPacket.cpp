@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+Client* OnionPacket::client = 0;
 OnionPacket::OnionPacket(void) {
     this->buf = 0;
     this->buf_len = 0;
@@ -9,14 +10,14 @@ OnionPacket::OnionPacket(void) {
 }
 
 OnionPacket::OnionPacket(unsigned int length) {
-    this->buf = (char*) calloc(length,sizeof(char));
+    this->buf = (uint8_t*) calloc(length,sizeof(uint8_t));
     this->buf_len = length;
     this->length = 0;
 }
 
-OnionPacket::OnionPacket(char* buffer,unsigned int length) {
+OnionPacket::OnionPacket(uint8_t* buffer,unsigned int length) {
     this->buf_len = length;
-    this->buf = (char*) calloc(length,sizeof(char));
+    this->buf = (uint8_t*) calloc(length,sizeof(uint8_t));
     this->length = 0;
     memcpy(this->buf,buffer,length);
 }
@@ -47,11 +48,11 @@ void OnionPacket::setPayloadLength(int length) {
     this->length = length;
 }
 
-char* OnionPacket::getBuffer(void) {
+uint8_t* OnionPacket::getBuffer(void) {
     return this->buf;
 }
 
-char* OnionPacket::getPayload(void) {
+uint8_t* OnionPacket::getPayload(void) {
     if (this->buf_len > 3) {
         return this->buf+3;
     } else {
@@ -87,7 +88,13 @@ bool OnionPacket::send(void) {
     // Update payload length
     updateLength();
     // Write this packet to the socket
-    
+    if (OnionPacket::client != 0) {
+        int length = getBufferLength();
+        int rc = client->write((uint8_t*)buf, length);
+        if (length == rc) {
+            return true;
+        }
+    }
     // Report success/fail
     return false;
 }

@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 main() {
-    std::cout << "Hello World!\n";
+    printf("Hello World!\n");
 //    char buffer[200];
     OnionPacket* packet = new OnionPacket(200);
     OnionPayloadPacker *packer = new OnionPayloadPacker(packet);

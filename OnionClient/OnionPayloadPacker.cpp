@@ -11,7 +11,7 @@ OnionPayloadPacker::OnionPayloadPacker(OnionPacket* pkt) {
     this->pkt = pkt;
 }
 
-OnionPayloadPacker::OnionPayloadPacker(char* buffer,unsigned int max_length) {
+OnionPayloadPacker::OnionPayloadPacker(uint8_t* buffer,unsigned int max_length) {
     this->buf = buffer;
     this->max_len = max_length;
     this->len = 0;
@@ -179,6 +179,6 @@ int   OnionPayloadPacker::getLength(void) {
     return this->len;
 }
 
-char* OnionPayloadPacker::getBuffer(void) {
+uint8_t* OnionPayloadPacker::getBuffer(void) {
     return this->buf;
 }
