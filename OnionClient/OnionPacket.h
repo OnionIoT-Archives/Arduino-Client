@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 #include "RPEthernetClient.h"
-// Hack for arduino incase they use only NULL versus null
-#ifndef null
-#define null    NULL
-#endif
 
 class OnionPacket {
 public:

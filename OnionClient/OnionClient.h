@@ -64,8 +64,6 @@ protected:
 	boolean subscribe();
 	uint16_t readPacket();
 	uint8_t readByte();
-//	boolean write(uint8_t, uint8_t*, uint16_t);
-//	uint16_t writeString(uint8_t*, uint8_t*, uint16_t);
 	
 	uint8_t buffer[ONION_MAX_PACKET_SIZE];
 	uint16_t nextMsgId;
