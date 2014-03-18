@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <Arduino.h>
 
 // Public Functions
 OnionPayloadData::OnionPayloadData() {
@@ -62,13 +62,22 @@ int OnionPayloadData::unpack(void) {
     //printf("->unpack: rawType = %02X\n",rawType);
     if (((rawType & 0x80) == 0) || ((rawType & 0xE0) == 0xE0)) {
         type = MSGPACK_FIXINT_HEAD;
+        Serial.print("--> unpack type = int\n");
         data = calloc(1,sizeof(int));
         int *ptr = (int*) data;
         *ptr = rawType;
+        Serial.print("--> unpack vaue = ");
+        Serial.print(*ptr);
+        Serial.print("\n");
         //printf("->unpack: found fixint type, value = %d\n",*ptr);
     } else if ((rawType & 0xF0) == MSGPACK_FIXMAP_HEAD) {
         type = MSGPACK_FIXMAP_HEAD;
+        Serial.print("--> unpack type = map\n");
         length = rawType & 0x0F;
+        
+        Serial.print("--> unpack length = ");
+        Serial.print(length);
+        Serial.print("\n");
         dataObjectArray = new OnionPayloadData*[length];
         dataIsObject = true;
         for (int x=0;x<length;x++) {
@@ -77,7 +86,11 @@ int OnionPayloadData::unpack(void) {
         }
     } else if ((rawType & 0xF0) == MSGPACK_FIXARRAY_HEAD) {
         type = MSGPACK_FIXARRAY_HEAD;
+        Serial.print("--> unpack type = array\n");
         length = rawType & 0x0F;
+        Serial.print("--> unpack length = ");
+        Serial.print(length);
+        Serial.print("\n");
         dataObjectArray = new OnionPayloadData*[length];
         dataIsObject = true;
         //printf("->unpack: found fixArray type, length = %d\n",length);
@@ -88,7 +101,11 @@ int OnionPayloadData::unpack(void) {
         }
     } else if ((rawType & 0xE0) == MSGPACK_FIXSTR_HEAD) {
         type = MSGPACK_FIXSTR_HEAD;
+        Serial.print("--> unpack type = str\n");
         length = rawType & 0x1F;
+        Serial.print("--> unpack length = ");
+        Serial.print(length);
+        Serial.print("\n");
         data = new uint8_t[length+1];
         uint8_t* ptr = (uint8_t*) data;
         memcpy(ptr,rawBuffer+1,length);
@@ -97,6 +114,9 @@ int OnionPayloadData::unpack(void) {
         bytesParsed += length;
     } else {
         type = rawType;
+        Serial.print("--> unpack type = (other) = ");
+        Serial.print(rawType);
+        Serial.print("\n");
         switch (type) {
             case MSGPACK_NIL_HEAD: {
                 data = 0;

@@ -3,8 +3,8 @@
 
 #include <Arduino.h>
 #include <Client.h>
-#include "RPEthernetClient.h"
 #include "OnionParams.h"
+#include "OnionInterface.h"
 
 // ONION_MAX_PACKET_SIZE : Maximum packet size
 #define ONION_MAX_PACKET_SIZE 	128
@@ -50,13 +50,16 @@ public:
 	OnionClient(char*, char*);
 	void begin();
 	char* registerFunction(char*, remoteFunction, char** params, uint8_t param_count);
-    void update(uint8_t*, float);
+    void update(char*, float);
 	boolean publish(char*, char*);
+	boolean publish(char*, int);
+	boolean publish(char*, bool);
+	boolean publish(char*, double);
 	boolean loop();
 
 protected:
 	void callback(uint8_t*, uint8_t*, unsigned int);
-	void parsePublishData(const uint8_t *buf, uint16_t len);
+	void parsePublishData(OnionPacket* pkt);
 	void sendPingRequest(void);
 	void sendPingResponse(void);
 	boolean connect(char*, char*);
@@ -82,7 +85,8 @@ protected:
 	subscription_t* lastSubscription;
 	uint8_t totalSubscriptions;
 	unsigned int totalFunctions;
-	Client* _client;
+	//Client* _client;
+	OnionInterface* interface;
 	char* deviceId;
 	char* deviceKey;
 

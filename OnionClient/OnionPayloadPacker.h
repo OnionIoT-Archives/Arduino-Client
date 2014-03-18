@@ -6,7 +6,6 @@
 class OnionPayloadPacker {
 public:
 	OnionPayloadPacker(OnionPacket* pkt);
-	OnionPayloadPacker(uint8_t* buffer,unsigned int max_length);
 	~OnionPayloadPacker();
 	void packArray(int len);
 	void packMap(int len);

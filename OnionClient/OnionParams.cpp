@@ -58,7 +58,6 @@ OnionParams::~OnionParams() {
 
 int OnionParams::getInt(unsigned int index) {
 	int rc = 0;
-	Serial.println(index);
 	if(index < length) {
 		rc = atoi(data[index]);
 	}
