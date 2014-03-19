@@ -51,20 +51,21 @@ public:
 	void begin();
 	char* registerFunction(char*, remoteFunction, char** params, uint8_t param_count);
     void update(char*, float);
-	boolean publish(char*, char*);
-	boolean publish(char*, int);
-	boolean publish(char*, bool);
-	boolean publish(char*, double);
-	boolean loop();
+    bool publish(char** dataMap, uint8_t count);
+	bool publish(char*, char*);
+	bool publish(char*, int);
+	bool publish(char*, bool);
+	bool publish(char*, double);
+	bool loop();
 
 protected:
 	void callback(uint8_t*, uint8_t*, unsigned int);
 	void parsePublishData(OnionPacket* pkt);
 	void sendPingRequest(void);
 	void sendPingResponse(void);
-	boolean connect(char*, char*);
-	boolean connected();
-	boolean subscribe();
+	bool connect(char*, char*);
+	bool connected();
+	bool subscribe();
 	uint16_t readPacket();
 	uint8_t readByte();
 	

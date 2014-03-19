@@ -120,8 +120,8 @@ int8_t OnionPayloadData::unpack(void) {
 //        Serial.print("--> unpack length = ");
 //        Serial.print(length);
 //        Serial.print("\n");
-        data = new uint8_t[length+1];
-        uint8_t* ptr = (uint8_t*) data;
+        data = new char[length+1];
+        char* ptr = (char*) data;
         memcpy(ptr,rawBuffer+1,length);
         // Do I really need to add this null? probably, but may not be necessary
         ptr[length] = 0;
