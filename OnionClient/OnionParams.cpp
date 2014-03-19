@@ -5,14 +5,16 @@ OnionParams::OnionParams(uint8_t count) {
     } else {
         data = NULL;
     }
+    length = 0;
 }
 
 void OnionParams::setStr(uint8_t index,char* str,uint8_t len) {
-    data[index] = new char[len+1];
-    char* ptr = data[index];
+    char* ptr = new char[len+1];
+    data[index] = ptr;
     memcpy(ptr,str,len);
     ptr[len]= 0;
-    length = len;
+    //length = len;
+    length++;
 }
 
 OnionParams::OnionParams(char* payload) {
@@ -51,9 +53,9 @@ OnionParams::OnionParams(char* payload) {
 
 OnionParams::~OnionParams() {
 	for(int i = 0; i < length; i++) {
-		delete[] data[i];
+		delete data[i];
 	}
-	delete[] data;
+	delete data;
 }
 
 int OnionParams::getInt(unsigned int index) {

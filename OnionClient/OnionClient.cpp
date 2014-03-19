@@ -31,8 +31,6 @@ void OnionClient::begin() {
     Serial.begin(115200);
 	Serial.print("Start Connection\n");
 	if (connect(deviceId, deviceKey)) {
-	    Serial.print("Publishing Data\n");
-		publish("/onion","isAwesome");
 	    Serial.print("Sending Subscription Requests\n");
 		subscribe();
 	}
@@ -251,9 +249,13 @@ boolean OnionClient::loop() {
 			} else if (type == ONIONPINGREQ) {
 			    // Functionize this
 				sendPingResponse();
+				lastOutActivity = t;
 			} else if (type == ONIONPINGRESP) {
 				pingOutstanding = false;
 			} else if (type == ONIONSUBACK) {
+        	    Serial.print("Publishing Data\n");
+        		publish("/onion","isAwesome");
+				lastOutActivity = t;
 			}
 			delete pkt;
 		}
@@ -290,20 +292,23 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
     Serial.print("Publish Pkt Length = ");
     Serial.print(length);
     Serial.print("\n");
-    Serial.print("Raw Publish Data = ");
-    for (uint16_t x=0;x<length;x++) {
-        Serial.print(ptr[x]);
-        Serial.print(", ");
-    }
-    Serial.print("\n");
     OnionPayloadData* data = new OnionPayloadData(pkt);
+    
+    Serial.print("Payload Raw Length = ");
+    Serial.print(data->getRawLength());
+    Serial.print("\n");
     data->unpack();
     uint8_t count = data->getLength();
     uint8_t function_id = data->getItem(0)->getInt();
-	OnionParams* params = new OnionParams(count-1);
     Serial.print("Param Count=");
     Serial.print(count-1);
     Serial.print("\n");
+    Serial.print("Function Id=");
+    Serial.print(function_id);
+    Serial.print("\n");
+	delete data;
+	OnionParams* params = new OnionParams(count-1);
+    
 	if (count > 1) {
 	    // Get parameters
 	    for (uint8_t i=0;i<(count-1);i++) {
@@ -312,8 +317,10 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
 	    }
 	}
 	if (function_id < totalFunctions) {
-	    remoteFunctions[function_id](params);
+	    if (remoteFunctions[function_id] != 0) {
+	        remoteFunctions[function_id](params);
+	    }
 	}
 	//delete pkt;
-	delete data;
+	delete params;
 }

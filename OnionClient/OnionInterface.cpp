@@ -42,6 +42,7 @@ int8_t OnionInterface::send(OnionPacket* pkt) {
         int length = pkt->getBufferLength();
         int rc = _client->write((uint8_t*)pkt->getBuffer(), length);
         if (length == rc) {
+            delete pkt;
             return 1;
         }
         delete pkt;

@@ -11,28 +11,35 @@ OnionPayloadData::OnionPayloadData() {
 }
 
 OnionPayloadData::OnionPayloadData(OnionPacket* pkt) {
-    OnionPayloadData(pkt,0);
+    this->init(pkt,0);
 }
 
-OnionPayloadData::OnionPayloadData(OnionPacket* pkt,unsigned int offset) {
-    init(pkt,offset);
+OnionPayloadData::OnionPayloadData(OnionPacket* pkt,uint16_t offset) {
+    this->init(pkt,offset);
 }
 
 OnionPayloadData::~OnionPayloadData() {
     // Free any malloc'd or new'd data in this object
+        //Serial.print("-> payload data destructor\n");
+    if (dataObjectArray != 0) {
+        //Serial.print("--> deleting object array\n");
+        for (uint16_t x = 0;x<length;x++) {
+            delete dataObjectArray[x];
+        }
+    }
+    
     if (data != 0) {
         free(data);
+        //Serial.print("--> freed data\n");
     }
-    if (dataObjectArray != 0) {
-        delete[] dataObjectArray;
-    }
+    
 }
 
 int OnionPayloadData::getRawLength() {
     return this->rawLength;
 }
 
-void OnionPayloadData::init(OnionPacket* pkt,unsigned int offset) {
+void OnionPayloadData::init(OnionPacket* pkt,uint16_t offset) {
     // Initialize internal variables
     this->type = 0;
     this->length = 0;
@@ -40,7 +47,7 @@ void OnionPayloadData::init(OnionPacket* pkt,unsigned int offset) {
     this->dataObjectArray = 0;
     this->pkt = pkt;
     this->offset = offset;
-    this->rawBuffer = pkt->getPayload() + offset;
+    this->rawBuffer = (pkt->getPayload()) + offset;
     this->rawLength = pkt->getPayloadLength() - offset;
     this->dataIsObject = false;
     //printf("->init: pkt->length = %d , offset = %d, rawLength = %d\n",pkt->getLength(), offset,this->rawLength);
@@ -48,9 +55,10 @@ void OnionPayloadData::init(OnionPacket* pkt,unsigned int offset) {
 
 // Call unpack to try and unpack the data into link list of payload objects
 // returns the count of bytes used to unpack
-int OnionPayloadData::unpack(void) {
+int8_t OnionPayloadData::unpack(void) {
     //printf("->unpack: rawLength = %d\n",this->rawLength);
     if (rawLength == 0) {
+        Serial.print("-> unpack: kicked out with 0 rawLength\n");
         //printf("->unpack: kicked out b/c no rawLength\n");
         return 0;
     }
@@ -59,25 +67,31 @@ int OnionPayloadData::unpack(void) {
     length = 1;
     bytesParsed++;  // Add one to parsed bytes since all formats have at least 1 byte
     uint8_t rawType = rawBuffer[0];
+//    Serial.print("-> unpack rawType = ");
+//    Serial.print(rawType);
+//    Serial.print("\n");
     //printf("->unpack: rawType = %02X\n",rawType);
     if (((rawType & 0x80) == 0) || ((rawType & 0xE0) == 0xE0)) {
         type = MSGPACK_FIXINT_HEAD;
-        Serial.print("--> unpack type = int\n");
+//        Serial.print("--> unpack type = int\n");
         data = calloc(1,sizeof(int));
         int *ptr = (int*) data;
         *ptr = rawType;
-        Serial.print("--> unpack vaue = ");
-        Serial.print(*ptr);
-        Serial.print("\n");
+//        Serial.print("--> unpack value = ");
+//        Serial.print(*ptr);
+//        Serial.print("\n");
         //printf("->unpack: found fixint type, value = %d\n",*ptr);
     } else if ((rawType & 0xF0) == MSGPACK_FIXMAP_HEAD) {
         type = MSGPACK_FIXMAP_HEAD;
-        Serial.print("--> unpack type = map\n");
+//        Serial.print("--> unpack type = map\n");
         length = rawType & 0x0F;
         
-        Serial.print("--> unpack length = ");
-        Serial.print(length);
-        Serial.print("\n");
+//        Serial.print("--> unpack length = ");
+//        Serial.print(length);
+//        Serial.print("\n");
+        // ************************** THIS NEEDS UPDATING *********************
+        // Need to double length of data array for map pairs, and need to handle
+        // it accordingly in the destructor (probably need another length or map bool
         dataObjectArray = new OnionPayloadData*[length];
         dataIsObject = true;
         for (int x=0;x<length;x++) {
@@ -86,11 +100,11 @@ int OnionPayloadData::unpack(void) {
         }
     } else if ((rawType & 0xF0) == MSGPACK_FIXARRAY_HEAD) {
         type = MSGPACK_FIXARRAY_HEAD;
-        Serial.print("--> unpack type = array\n");
+//        Serial.print("--> unpack type = array\n");
         length = rawType & 0x0F;
-        Serial.print("--> unpack length = ");
-        Serial.print(length);
-        Serial.print("\n");
+//        Serial.print("--> unpack length = ");
+//        Serial.print(length);
+//        Serial.print("\n");
         dataObjectArray = new OnionPayloadData*[length];
         dataIsObject = true;
         //printf("->unpack: found fixArray type, length = %d\n",length);
@@ -101,11 +115,11 @@ int OnionPayloadData::unpack(void) {
         }
     } else if ((rawType & 0xE0) == MSGPACK_FIXSTR_HEAD) {
         type = MSGPACK_FIXSTR_HEAD;
-        Serial.print("--> unpack type = str\n");
+//        Serial.print("--> unpack type = str\n");
         length = rawType & 0x1F;
-        Serial.print("--> unpack length = ");
-        Serial.print(length);
-        Serial.print("\n");
+//        Serial.print("--> unpack length = ");
+//        Serial.print(length);
+//        Serial.print("\n");
         data = new uint8_t[length+1];
         uint8_t* ptr = (uint8_t*) data;
         memcpy(ptr,rawBuffer+1,length);
@@ -251,7 +265,7 @@ int OnionPayloadData::unpack(void) {
 
 // getItem(item) will return an item from an array or map so you can dig into the data structure.
 // item is 0 based index of the array, i should be less than Length (from getLength() below)
-OnionPayloadData* OnionPayloadData::getItem(int i) {
+OnionPayloadData* OnionPayloadData::getItem(uint16_t i) {
     if (length == 0) {
         return 0;
     } else if (i<length) {
@@ -266,7 +280,7 @@ uint8_t OnionPayloadData::getType(void) {
 
 // getLength() will return the number of items in an array or map, will return 1 for other data
 // and 0 for any data that could not be parsed correctly.
-int OnionPayloadData::getLength(void) {
+uint16_t OnionPayloadData::getLength(void) {
     return this->length;
 }
 
@@ -280,7 +294,7 @@ uint8_t* OnionPayloadData::getBuffer(void) {
 // ???  Should I add a getString to make sure the data has a null terminated string? Might be nice to be able to
 // ???  pass an output directly to str functions
 // getInt() will return the raw parse data as an int.  If the type is not int it will return 0
-int OnionPayloadData::getInt(void) {
+int16_t OnionPayloadData::getInt(void) {
     if (data != 0) {
         int *ptr = (int*) data;
         return *ptr;
