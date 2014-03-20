@@ -1,9 +1,15 @@
 #include "OnionYunClient.h"
+#include "OnionPacket.h"
+#include "OnionPayloadData.h"
+#include "OnionPayloadPacker.h"
+#include "OnionInterface.h"
+#include <stdio.h>
+#include <Arduino.h>
 
-char OnionYunClient::domain[] = "mqtt.onion.io";
-uint16_t OnionYunClient::port = 1883;
-
-
+char OnionYunClient::domain[] = "zh.onion.io";
+uint16_t OnionYunClient::port = 2721;
+   
+static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
 OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
 	this->deviceId[0] = 0;
@@ -16,101 +22,90 @@ OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 	this->remoteFunctions = new remoteFunction[1];
 	this->remoteFunctions[0] = NULL;
 	this->totalFunctions = 1;
-	_client = new YunClient();
+	this->lastSubscription = NULL;
+	totalSubscriptions = 0;
+	this->interface = new OnionInterface();
 }
 
 void OnionYunClient::begin() {
-	char* topic = new char[strlen(deviceId) + 2];
-	topic[0] = 0;
-	strcat(topic, "/");
-	strcat(topic, deviceId);
-
-	char* init = new char[strlen(deviceId) + 11];
-	init[0] = 0;
-	strcat(init, deviceId);
-	strcat(init, ";CONNECTED");
-
-	if (connect(deviceId, deviceId, deviceKey)) {
-		publish("/register", init);
-		subscribe(topic);
+    Serial.begin(115200);
+	Serial.print("Start Connection\n");
+	if (connect(deviceId, deviceKey)) {
+	    Serial.print("Sending Subscription Requests\n");
+		subscribe();
 	}
-
-	delete[] init;
-	delete[] topic;
 }
 
-boolean OnionYunClient::connect(char* id, char* user, char* pass) {
-	if (!connected()) {
-		int result = _client->connect(OnionYunClient::domain, OnionYunClient::port);
+bool OnionYunClient::connect(char* id, char* key) {
+    if (interface == 0) {
+        Serial.print("Tried to connect with no interface!");
+        return false;
+        //interface = new OnionInterface();
+    }
+	if (!interface->connected()) {
+		int result = interface->open(OnionYunClient::domain, OnionYunClient::port);
 
 		if (result) {
-			nextMsgId = 1;
-			uint8_t d[9] = { 0x00, 0x06, 'M', 'Q', 'I', 's', 'd', 'p', MQTTPROTOCOLVERSION };
-			
-			// Leave room in the buffer for header and variable length field
-			uint16_t length = 5;
-			unsigned int j;
-			for (j = 0; j < 9; j++) {
-				buffer[length++] = d[j];
-			}
-			
-			// No WillMsg
-         	uint8_t v = 0x02;
-			
-			// User
-			v = v | 0x80;
-			
-			// Password
-            v = v | (0x80 >> 1);
-
-			buffer[length++] = v;
-
-			buffer[length++] = ((MQTT_KEEPALIVE) >> 8);
-			buffer[length++] = ((MQTT_KEEPALIVE) & 0xFF);
-		
-			// Writing id, user and pass
-			length = writeString(id, buffer, length);
-			length = writeString(user, buffer, length);
-			length = writeString(pass, buffer, length);
-         
-			write(MQTTCONNECT, buffer, length - 5);
-         
+			//nextMsgId = 1;
+            OnionPacket* pkt = new OnionPacket(128);
+            pkt->setType(ONIONCONNECT);
+            OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
+            pack->packArray(3);
+            pack->packInt(ONIONPROTOCOLVERSION);
+            pack->packStr(id);
+            pack->packStr(key);
+            //pkt->send();
+            interface->send(pkt);
 			lastInActivity = lastOutActivity = millis();
-         
-			while (!_client->available()) {
+            //delete pkt;
+            delete pack;
+            OnionPacket *recv_pkt = interface->getPacket();
+			while (recv_pkt == 0) {
 				unsigned long t = millis();
-				if (t - lastInActivity > MQTT_KEEPALIVE * 1000UL) {
-					_client->stop();
+				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
+					interface->close();
 					return false;
 				}
+			    recv_pkt = interface->getPacket();
 			}
-			uint8_t llen;
-			uint16_t len = readPacket(&llen);
-
-			if (len == 4 && buffer[3] == 0) {
-				lastInActivity = millis();
-				pingOutstanding = false;
-				return true;
+			uint8_t pkt_type = recv_pkt->getType();
+			uint16_t length = recv_pkt->getPayloadLength();
+			uint8_t* payload = recv_pkt->getPayload();
+			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
+			    if (payload[0] == 0) {
+    				lastInActivity = millis();
+    				pingOutstanding = false;
+    				delete recv_pkt;
+    				return true;
+    			}
 			}
+			delete recv_pkt;
 		}
-		_client->stop();
+		interface->close();
 	}
 	return false;
 }
 
-boolean OnionYunClient::connected() {
-	boolean rc;
-	if (_client == NULL) {
-		rc = false;
-	} else {
-		rc = (int)_client->connected();
-		if (!rc) _client->stop();
-	}
-	return rc;
-}
 
-char* OnionYunClient::registerFunction(remoteFunction function) {
+char* OnionYunClient::registerFunction(char * endpoint, remoteFunction function, char** params, uint8_t param_count) {
 	remoteFunction* resized = new remoteFunction[totalFunctions + 1];
+	if (lastSubscription == NULL) {
+	    subscriptions.id = totalFunctions;
+	    subscriptions.endpoint = endpoint;
+	    subscriptions.params = params;
+	    subscriptions.param_count = param_count;
+	    lastSubscription = &subscriptions;
+	} else {
+	    subscription_t* new_sub = (subscription_t*)malloc(sizeof(subscription_t));
+	    new_sub->id = totalFunctions;
+	    new_sub->endpoint = endpoint;
+	    new_sub->params = params;
+	    new_sub->param_count = param_count;
+	    new_sub->next = NULL;
+	    lastSubscription->next = new_sub;
+	    lastSubscription = new_sub; 
+	}
+	totalSubscriptions++;
 	
 	for (int i = 0; i < totalFunctions; i++) {
 		resized[i] = remoteFunctions[i];
@@ -122,6 +117,8 @@ char* OnionYunClient::registerFunction(remoteFunction function) {
 	delete [] remoteFunctions;
 	remoteFunctions = resized;
 	
+	
+	
 	char* idStr = new char[6];
 	idStr[0] = 0;
 	sprintf(idStr, "%d", totalFunctions);
@@ -130,68 +127,9 @@ char* OnionYunClient::registerFunction(remoteFunction function) {
 	return idStr;
 };
 
-void OnionYunClient::get(char* endpoint, remoteFunction function) {
-	char* functionId = registerFunction(function);
-	char* payload = new char[strlen(deviceId) + strlen(endpoint) + strlen(functionId) + 7];
-	payload[0] = 0;
-
-	strcat(payload, deviceId);
-	strcat(payload, ";GET;");
-	strcat(payload, endpoint);
-	strcat(payload, ";");
-	strcat(payload, functionId);
-	publish("/register", payload);
-	
-	delete[] functionId;
-	delete[] payload;
-}
-
-void OnionYunClient::post(char* endpoint, remoteFunction function, char* dataStructure) {
-	char* functionId = registerFunction(function);
-	char* payload = new char[strlen(deviceId) + strlen(dataStructure) + strlen(endpoint) + strlen(functionId) + 10];
-	payload[0] = 0;
-
-	strcat(payload, deviceId);
-	strcat(payload, ";POST;");
-	strcat(payload, endpoint);
-	strcat(payload, ";");
-	strcat(payload, functionId);
-	strcat(payload, ";");
-	strcat(payload, dataStructure);
-	publish("/register", payload);
-	
-	delete[] functionId;
-	delete[] payload;
-}
-
-void OnionYunClient::update(char* endpoint, float val) {
-
-	char* value = new char[16];
-        value[0]=0;
-        dtostrf(val, 0, 2, value);
-        
-
-        int payloadLen = strlen(deviceId) + strlen(value) + strlen(endpoint) + 8;
-	char* payload = new char[payloadLen];
-
-	payload[0] = 0;
-
-	strcat(payload, deviceId);
-	strcat(payload, ";UPDATE;");
-	strcat(payload, endpoint);
-	strcat(payload, ";");
-	strcat(payload, value);
-	publish("/register", payload);
-	
-	delete[] value;
-	delete[] payload;
-}
 
 
-
-
-
-void OnionYunClient::callback(char* topic, byte* payload, unsigned int length) {
+void OnionYunClient::callback(uint8_t* topic, byte* payload, unsigned int length) {
 	// Get the function ID
 	char idStr[6] = "";
 	OnionParams* params = NULL;
@@ -221,7 +159,7 @@ void OnionYunClient::callback(char* topic, byte* payload, unsigned int length) {
 		}
 		rawParams[length - offset] = 0;
 		
-		params = new OnionParams(rawParams);
+		//params = new OnionParams(rawParams);
 		delete[] rawParams;
 	}
 	
@@ -233,155 +171,187 @@ void OnionYunClient::callback(char* topic, byte* payload, unsigned int length) {
 	delete params;
 }
 
-boolean OnionYunClient::publish(char* topic, char* payload) {
-	int plength = strlen(payload);
-	if (connected()) {
-		// Leave room in the buffer for header and variable length field
-		uint16_t length = 5;
-		length = writeString(topic, buffer, length);
-		uint16_t i;
-		for (i = 0; i < plength; i++) {
-			buffer[length++] = payload[i];
-		}
-		uint8_t header = MQTTPUBLISH;
-
-		return write(header, buffer, length - 5);
+bool OnionYunClient::publish(char* key, char* value) {
+	int key_len = strlen(key);
+	int value_len = strlen(value);
+	if (interface->connected()) {
+        OnionPacket* pkt = new OnionPacket(128);
+        pkt->setType(ONIONPUBLISH);
+        OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
+        pack->packMap(1);
+        pack->packStr(key);
+        pack->packStr(value);
+        
+	    interface->send(pkt);
+        //pkt->send();
+        delete pack;
+        //delete pkt;
 	}
 	return false;
 }
 
-boolean OnionYunClient::subscribe(char* topic) {
-	if (connected()) {
-		// Leave room in the buffer for header and variable length field
-		uint16_t length = 5;
-		nextMsgId++;
-		if (nextMsgId == 0) {
-			nextMsgId = 1;
-		}
-		buffer[length++] = (nextMsgId >> 8);
-		buffer[length++] = (nextMsgId & 0xFF);
-		length = writeString(topic, buffer, length);
-		buffer[length++] = 0; // Only do QoS 0 subs
-		return write(MQTTSUBSCRIBE | MQTTQOS1, buffer, length - 5);
+bool OnionYunClient::publish(char** dataMap, uint8_t count) {
+    OnionPacket* pkt = new OnionPacket(128);
+    pkt->setType(ONIONPUBLISH);
+    OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
+    pack->packMap(count);
+    for (uint8_t x=0; x<count; x++) {
+        pack->packStr(*dataMap++);
+        pack->packStr(*dataMap++);
+    }
+    
+    interface->send(pkt);
+    delete pack;
+}
+
+bool OnionYunClient::subscribe() {
+	if (interface->connected()) {
+	    // Generate 
+	    //Serial.print("->Found ");
+	    //Serial.print(totalSubscriptions);
+	    //Serial.print(" Subscriptions\n");
+	    if (totalSubscriptions > 0) {
+            OnionPacket* pkt = new OnionPacket(128);
+            pkt->setType(ONIONSUBSCRIBE);
+            OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
+	        subscription_t *sub_ptr = &subscriptions;
+	        pack->packArray(totalSubscriptions);
+        	uint8_t string_len = 0;
+        	uint8_t param_count = 0;
+        	//Serial.print("->Packing subs\n");
+	        for (uint8_t i=0;i<totalSubscriptions;i++) {
+	            param_count = sub_ptr->param_count;
+	            pack->packArray(param_count+2);
+	            pack->packStr(sub_ptr->endpoint);
+	            pack->packInt(sub_ptr->id);
+	            for (uint8_t j=0;j<param_count;j++) {
+	                pack->packStr(sub_ptr->params[j]);
+	            }
+	            sub_ptr = sub_ptr->next;
+	        }
+	        interface->send(pkt);
+	        return true;
+	        //pkt->send();
+	        delete pack;
+	        //delete pkt;
+	    }
+	    
 	}
 	return false;
 }
 
-boolean OnionYunClient::loop() {
-	if (connected()) {
+bool OnionYunClient::loop() {
+	if (interface->connected()) {
 		unsigned long t = millis();
-		if ((t - lastInActivity > MQTT_KEEPALIVE * 1000UL) || (t - lastOutActivity > MQTT_KEEPALIVE * 1000UL)) {
+		if ((t - lastInActivity > ONION_KEEPALIVE * 1000UL) || (t - lastOutActivity > ONION_KEEPALIVE * 1000UL)) {
 			if (pingOutstanding) {
-				_client->stop();
+				interface->close();
 				return false;
 			} else {
-				buffer[0] = MQTTPINGREQ;
-				buffer[1] = 0;
-				_client->write(buffer, 2);
+			    sendPingRequest();
 				lastOutActivity = t;
 				lastInActivity = t;
 				pingOutstanding = true;
 			}
 		}
-
-		if (_client->available()) {
-			uint8_t llen;
-			uint16_t len = readPacket(&llen);
-			if (len > 0) {
-				lastInActivity = t;
-				uint8_t type = buffer[0] & 0xF0;
-				if (type == MQTTPUBLISH) {
-					uint16_t tl = (buffer[llen + 1] << 8) + buffer[llen + 2];
-					char topic[tl + 1];
-					for (uint16_t i=0; i < tl; i++) {
-						topic[i] = buffer[llen + 3 + i];
-					}
-					topic[tl] = 0;
-					// ignore msgID - only support QoS 0 subs
-					uint8_t *payload = buffer + llen + 3 + tl;
-					callback(topic, payload, len - llen - 3 - tl);
-				} else if (type == MQTTPINGREQ) {
-					buffer[0] = MQTTPINGRESP;
-					buffer[1] = 0;
-					_client->write(buffer, 2);
-				} else if (type == MQTTPINGRESP) {
-					pingOutstanding = false;
-				}
+        OnionPacket* pkt = interface->getPacket();
+		if (pkt != 0) {
+			lastInActivity = t;
+			uint8_t type = pkt->getType();
+			if (type == ONIONPUBLISH) {
+			    parsePublishData(pkt);
+			} else if (type == ONIONPINGREQ) {
+			    // Functionize this
+				sendPingResponse();
+				lastOutActivity = t;
+			} else if (type == ONIONPINGRESP) {
+				pingOutstanding = false;
+			} else if (type == ONIONSUBACK) {
+        	    Serial.print("Publishing Data\n");
+        		//publish("/onion","isAwesome");
+        		publish(publishMap,2);
+				lastOutActivity = t;
 			}
+			delete pkt;
 		}
 		return true;
 	} else {
-		this->connect(deviceId, deviceId, deviceKey);
-	}
-}
-
-uint8_t OnionYunClient::readByte() {
-	while(!_client->available()) {}
-	return _client->read();
-}
-
-uint16_t OnionYunClient::readPacket(uint8_t* lengthLength) {
-	uint16_t len = 0;
-	buffer[len++] = readByte();
-	uint8_t multiplier = 1;
-	uint16_t length = 0;
-	uint8_t digit = 0;
-	do {
-		digit = readByte();
-		buffer[len++] = digit;
-		length += (digit & 127) * multiplier;
-		multiplier *= 128;
-	} while ((digit & 128) != 0);
-	*lengthLength = len - 1;
-	for (uint16_t i = 0; i < length; i++) {
-		if (len < MQTT_MAX_PACKET_SIZE) {
-			buffer[len++] = readByte();
-		} else {
-			readByte();
-			len = 0; // This will cause the packet to be ignored.
+	    unsigned long t = millis();
+		if (t - lastOutActivity > ONION_KEEPALIVE * 1000UL) {
+		    this->begin();
 		}
 	}
-
-	return len;
 }
 
-boolean OnionYunClient::write(uint8_t header, uint8_t* buf, uint16_t length) {
-	uint8_t lenBuf[4];
-	uint8_t llen = 0;
-	uint8_t digit;
-	uint8_t pos = 0;
-	uint8_t rc;
-	uint8_t len = length;
-	do {
-		digit = len % 128;
-		len = len / 128;
-		if (len > 0) {
-			digit |= 0x80;
-		}
-		lenBuf[pos++] = digit;
-		llen++;
-	} while(len > 0);
 
-	buf[4-llen] = header;
-	for (int i = 0; i < llen; i++) {
-		buf[5-llen+i] = lenBuf[i];
+void OnionYunClient::sendPingRequest(void) {
+    OnionPacket* pkt = new OnionPacket(8);
+    pkt->setType(ONIONPINGREQ);
+    interface->send(pkt);
+    //pkt->send();
+    //delete pkt;
+}
+
+void OnionYunClient::sendPingResponse(void) {
+    OnionPacket* pkt = new OnionPacket(8);
+    pkt->setType(ONIONPINGRESP);
+    interface->send(pkt);
+    //pkt->send();
+    //delete pkt;
+}
+
+void OnionYunClient::parsePublishData(OnionPacket* pkt) {
+    
+    uint16_t length = pkt->getBufferLength();
+    uint8_t *ptr = pkt->getBuffer();
+//    Serial.print("Publish Pkt Length = ");
+//    Serial.print(length);
+//    Serial.print("\n");
+    OnionPayloadData* data = new OnionPayloadData(pkt);
+    
+//    Serial.print("Payload Raw Length = ");
+//    Serial.print(data->getRawLength());
+//    Serial.print("\n");
+    data->unpack();
+    uint8_t count = data->getLength();
+    uint8_t function_id = data->getItem(0)->getInt();
+//    Serial.print("Param Count=");
+//    Serial.print(count-1);
+//    Serial.print("\n");
+//    Serial.print("Function Id=");
+//    Serial.print(function_id);
+//    Serial.print("\n");
+	OnionParams* params = new OnionParams(count-1);
+    
+	if (count > 1) {
+	    // Get parameters
+	    for (uint8_t i=0;i<(count-1);i++) {
+	        OnionPayloadData* item = data->getItem(i+1);
+	        uint8_t strLen = item->getLength();
+	        // Test
+	        char* buf_ptr = (char *)(item->getBuffer());
+//            Serial.print("param #");
+//            Serial.print(i+1);
+//            Serial.print(" = ");
+//            Serial.print(buf_ptr);
+//            Serial.print("\n");
+//            delay(100);
+	        params->setStr(i,buf_ptr,strLen);
+	    }
 	}
-	rc = _client->write(buf + (4 - llen), length + 1 + llen);
-   
-	lastOutActivity = millis();
-	return (rc == 1 + llen + length);
-}
-
-uint16_t OnionYunClient::writeString(char* string, uint8_t* buf, uint16_t pos) {
-	char* idp = string;
-	uint16_t i = 0;
-	pos += 2;
-	while (*idp) {
-		buf[pos++] = *idp++;
-		i++;
+	if (function_id < totalFunctions) {
+	    if (remoteFunctions[function_id] != 0) {
+	        remoteFunctions[function_id](params);
+	    } else {
+	        // if the remote function isn't called
+	        // no one will delete params, so we have to
+	        delete params;
+	    }
+	} else {
+	    // We need to delete this here since no one else can
+	    delete params;
 	}
-	buf[pos - i - 2] = (i >> 8);
-	buf[pos - i - 1] = (i & 0xFF);
-	return pos;
+	//delete pkt;
+	//delete params;
+	delete data;
 }
-

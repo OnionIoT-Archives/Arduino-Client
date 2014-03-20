@@ -5,8 +5,10 @@
 
 class OnionParams {
 public:
-	OnionParams(char*);
+	//OnionParams(char*);
+	OnionParams(uint8_t count);
 	~OnionParams();
+	void setStr(uint8_t index,char* str,uint8_t len);
 	int getInt(unsigned int);
 	float getFloat(unsigned int);
 	bool getBool(unsigned int);

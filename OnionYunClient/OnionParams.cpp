@@ -1,49 +1,65 @@
 #include "OnionParams.h"
-
-OnionParams::OnionParams(char* payload) {
-	Serial.begin(9600);
-	length = 0;
-	rawData = payload;
-	rawLength = strlen(payload);
-	
-	if(rawLength) {
-		char* chunk;
-		
-		// Add the first chunk
-		data = new char*[length + 1];
-		data[0] = 0;
-		chunk = strtok(payload, ",");
-		data[length] = new char[strlen(chunk) + 1];
-		strcpy(data[length], chunk);
-		length++;
-
-		while(chunk != NULL) {
-			chunk = strtok(NULL, ",");
-			if(chunk != NULL) {
-				char** resized = new char*[length + 1];
-				for(int i = 0; i < length; i++) {
-					resized[i] = new char[strlen(data[i]) + 1];
-					strcpy(resized[i], data[i]);
-				}
-				delete[] data;
-				data = resized;
-				data[length] = chunk;
-				length++;
-			}
-		}
-	}
+OnionParams::OnionParams(uint8_t count) {
+    if (count > 0) {
+        data = new char*[count];
+    } else {
+        data = NULL;
+    }
+    length = 0;
 }
+
+void OnionParams::setStr(uint8_t index,char* str,uint8_t len) {
+    char* ptr = new char[len+1];
+    data[index] = ptr;
+    memcpy(ptr,str,len);
+    ptr[len]= 0;
+    //length = len;
+    length++;
+}
+
+//OnionParams::OnionParams(char* payload) {
+//	//Serial.begin(9600);
+//	length = 0;
+//	rawData = payload;
+//	rawLength = strlen(payload);
+//	
+//	if(rawLength) {
+//		char* chunk;
+//		
+//		// Add the first chunk
+//		data = new char*[length + 1];
+//		data[0] = 0;
+//		chunk = strtok(payload, ",");
+//		data[length] = new char[strlen(chunk) + 1];
+//		strcpy(data[length], chunk);
+//		length++;
+//
+//		while(chunk != NULL) {
+//			chunk = strtok(NULL, ",");
+//			if(chunk != NULL) {
+//				char** resized = new char*[length + 1];
+//				for(int i = 0; i < length; i++) {
+//					resized[i] = new char[strlen(data[i]) + 1];
+//					strcpy(resized[i], data[i]);
+//				}
+//				delete[] data;
+//				data = resized;
+//				data[length] = chunk;
+//				length++;
+//			}
+//		}
+//	}
+//}
 
 OnionParams::~OnionParams() {
 	for(int i = 0; i < length; i++) {
-		delete[] data[i];
+		delete data[i];
 	}
-	delete[] data;
+	delete data;
 }
 
 int OnionParams::getInt(unsigned int index) {
 	int rc = 0;
-	Serial.println(index);
 	if(index < length) {
 		rc = atoi(data[index]);
 	}
