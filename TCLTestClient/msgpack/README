@@ -1,0 +1,412 @@
+
+msgpack - A pure Tcl implementation of the MessagePack object serialization library
+Generated from file '' by tcllib/doctools with format 'text'
+msgpack(n) 1.0.0  "A pure Tcl implementation of the MessagePack object serialization library"
+
+NAME
+====
+
+msgpack - msgpack Package Reference
+
+SYNOPSIS
+========
+
+package require Tcl 8.6
+package require msgpack ?1.0.0?
+
+msgpack::packer new
+packerObject data
+packerObject destroy
+packerObject pack args
+packerObject reset
+msgpack::unpacker new
+unpackerObject destroy
+unpackerObject unpack_stream istream callback
+unpackerObject unpack_string istring ?callback?
+msgpack array2list 
+msgpack map2array 
+msgpack map2dict 
+msgpack pack args
+msgpack unpack string
+
+DESCRIPTION
+===========
+
+The _msgpack_ package is a pure Tcl implementation the MessagePack object
+serialization library. You can find the wrapper code at GitHub:
+<URL:https://github.com/jdc8/msgpack>. MessagePack can be found at
+<URL:http://msgpack.org/>.
+
+Use this documentation in combination with the MessagePack documentation for
+more details.
+
+Packer class
+============
+
+    msgpack::packer new
+
+        _oo::class_ <URL:http://www.tcl.tk/man/tcl8.6/TclCmd/class.htm>
+        implementing the MessagePack packing.
+
+    packerObject data
+
+        Return the packed data.
+
+    packerObject destroy
+
+        Destroy the packer object.
+
+    packerObject pack args
+
+        Pack the specified value and store it internally. More information on
+        how to specify values to be packed can be found in section -> Pack
+        options. To get the packed data, use the data method.
+
+    packerObject reset
+
+        Reset the packer.
+
+Unpacker class
+==============
+
+    msgpack::unpacker new
+
+        _oo::class_ <URL:http://www.tcl.tk/man/tcl8.6/TclCmd/class.htm>
+        implementing the MessagePack unpacking.
+
+    unpackerObject destroy
+
+        Destroy the unpacker object.
+
+    unpackerObject unpack_stream istream callback
+
+        Unpack data read from the istream argument. The callback command is
+        called when a MessagePack object is unpacked. Before calling the
+        callback command, the word _data_ and the unpacked MessagePack object is
+        _lappend_-ed to the command. When the stream is closed (_eof_ detected),
+        the callback command is called with the word _eof_ and the stream handle
+        _lappend_-ed.
+
+        The istream is configure like this:
+
+        *   Non blocking
+
+        *   Unbuffered
+
+        *   Translation _binary_
+
+        Encoding _binary_
+
+        Opening and closing the istream is the responsability of the script
+        calling the unpack_stream method.
+
+    unpackerObject unpack_string istring ?callback?
+
+        Unpack the specified data. If no callback command is specified, a list
+        with unpacked type (see below) and value pairs is returned. If a
+        callback command is specified, this command is called when a MessagePack
+        object is unpacked. Before calling the callback command, the word _data_
+        and the unpacked MessagePack object is _lappend_-ed to the command.
+
+Type information found in the unpacked MessagePack objects can be one of the
+following:
+
+    nil
+
+    boolean
+
+    integer
+
+    double
+
+    raw
+
+    array
+
+    map
+
+Values can be nested type/value list.
+
+Utilities
+=========
+
+    msgpack array2list
+
+        Convert a MessagePack array as retuned by the unpack command or method
+        into a Tcl list.
+
+    msgpack map2array
+
+        Convert a MessagePack map as retuned by the unpack command or method
+        into a Tcl array.
+
+    msgpack map2dict
+
+        Convert a MessagePack map as retuned by the unpack command or method
+        into a Tcl dict.
+
+    msgpack pack args
+
+        Pack the specified value. The packed value is returned. More information
+        on how to specify values to be packed can be found in section -> Pack
+        options.
+
+    msgpack unpack string
+
+        Unpack the specified data. A list with unpacked type (see -> Unpacker
+        class) and value pairs is returned.
+
+Pack options
+============
+
+The arguments for the pack command or method are always one or more type
+specifiers and if needed a value. The list below shows the supported types:
+
+    array size
+
+        Add array size to packed data. Must be followed by size calls to method
+        pack to add the array elements to the packed data.
+
+    boolean data
+
+        Add a boolean to the packed data. Is equivalent calling methods pack
+        true or pack false.
+
+    dict keyType valueType dictionaryValue
+
+        Add a dict to the packed data. This is equivalent to calling method pack
+        map with the dict size as argument, followed by calling method pack
+        keyType and method pack valueType for each key/value pair in the dict.
+
+    double data
+
+        Add a double to the packed data.
+
+    false
+
+        Add a boolean with value false to the packed data.
+
+    fix_int8 data
+
+        Add an 8 bit integer to the packed data.
+
+    fix_int16 data
+
+        Add a 16 bit integer to the packed data.
+
+    fix_int32 data
+
+        Add a 32 bit integer to the packed data.
+
+    fix_int64 data
+
+        Add a 64 bit integer to the packed data.
+
+    fix_uint8 data
+
+        Add an 8 bit unsigned integer to the packed data.
+
+    fix_uint16 data
+
+        Add a 16 bit unsigned integer to the packed data.
+
+    fix_uint32 data
+
+        Add a 32 bit unsigned integer to the packed data.
+
+    fix_uint64 data
+
+        Add a 64 bit unsigned integer to the packed data.
+
+    float data
+
+        Add a float to the packed data.
+
+    int data
+
+        Add an integer to the packed data, let the packer choose the best
+        packing.
+
+    int8 data
+
+        Add an 8 bit integer to the packed data, let the packer choose the best
+        packing.
+
+    int16 data
+
+        Add a 16 bit integer to the packed data, let the packer choose the best
+        packing.
+
+    int32 data
+
+        Add a 32 bit integer to the packed data, let the packer choose the best
+        packing.
+
+    int64 data
+
+        Add a 64 bit integer to the packed data, let the packer choose the best
+        packing.
+
+    list elemenType list
+
+        Add a Tcl list to the packed data. This is equivalent to calling method
+        pack array with the list length as argument followed by calls to method
+        pack elementType for each list element.
+
+    long data
+
+        Add a long integer to the packed data.
+
+    long_long data
+
+        Add a long long integer to the packed data.
+
+    map size
+
+        Add the map size to the packed data. Must be followed by size pairs of
+        calls to method pack to add the keys and values to the packed data.
+
+    nil
+
+        Add a nil to the packed data.
+
+    raw size
+
+        Add the size of a raw body to the packed data. Must precede a call to
+        method pack raw_body.
+
+    raw_body data
+
+        Add raw data to the packed data. Must be preceded by a call to method
+        pack raw.
+
+    short data
+
+        Add a short integer to the packed data.
+
+    string string
+
+        Add a string to the packed data. Is equivalent to calling methods pack
+        raw and pack raw_body.
+
+    tcl_array keyType valueType arrayName
+
+        Add a Tcl array to the packed data. This is equivalent to calling method
+        pack map with the array size as argument, followed by calling method
+        pack keyType and method pack valueType for each key/value pair in the
+        array.
+
+    true
+
+        Add a boolean with value true to the packed data.
+
+    uint8 data
+
+        Add an 8 bit unsigned integer to the packed data, let the packer choose
+        the best packing.
+
+    uint16 data
+
+        Add a 16 bit unsigned integer to the packed data, let the packer choose
+        the best packing.
+
+    uint32 data
+
+        Add a 32 bit unsigned integer to the packed data, let the packer choose
+        the best packing.
+
+    uint64 data
+
+        Add a 64 bit unsigned integer to the packed data, let the packer choose
+        the best packing.
+
+    unsigned_int data
+
+        Add an unsigned integer to the packed data.
+
+    unsigned_long data
+
+        Add a unsigned long integer to the packed data.
+
+    unsigned_long_long data
+
+        Add an unsigned long long integer to the packed data.
+
+    unsigned_short data
+
+        Add an unsigned short integer to the packed data.
+
+Examples
+========
+
+Creating a *msgpack::packer* object and packing some data:
+
+| package require msgpack
+
+| set p [msgpack::packer new]
+
+| $p pack int 123456789
+| $p pack string "A MessagePack example"
+| $p pack dict int string {1 one 2 two}
+| set packed_data [$p data]
+| $p destroy
+
+Now unpack the packed data using a *msgpack::packer* object:
+
+| package require msgpack
+
+| set u [msgpack::unpacker new]
+| $u unpack_string $packed_data
+
+| $u destroy
+
+After unpacking, the following list of type/value pairs is returned by the
+unpack_string method:
+
+| {integer 123456789} {raw {A MessagePack example}} {map {{integer 1} {raw one} {integer 2} {raw two}}}
+
+The same example using the pack utility function for packing the data:
+
+| set packed_data ""
+| append packed_data [msgpack pack int 0xFFFFFFFF]
+| append packed_data [msgpack pack string "A Utility example"]
+| append packed_data [msgpack pack dict int string {3 three 4 four}]
+
+An using the unpack utility function to unpack the data:
+
+| puts [msgpack unpack $packed_data]
+
+After unpacking, the following list of type/value pairs is returned by the
+unpack utility function:
+
+| {integer 4294967295} {raw {A Utility example}} {map {{integer 3} {raw three} {integer 4} {raw four}}}
+
+Bugs, ideas, feedback
+=====================
+
+This document, and the package it describes, will undoubtedly contain bugs and
+other problems. Please report such at the _Github tracker_
+<URL:https://github.com/jdc8/msgpack/issues>. Please also report any ideas for
+enhancements you may have for either package and/or documentation.
+
+License
+=======
+
+The wrapper code is relased under the BSD license (specifically Modified BSD aka
+New BSD aka 3-clause BSD). Check COPYING.BSD for more info about the license
+used for this wrapper.
+
+KEYWORDS
+========
+
+MessagePack, msgpack, serialization
+
+CATEGORY
+========
+
+Serialization
+
+COPYRIGHT
+=========
+
+Copyright (c) Jos Decoster <jos.decoster@gmail.com>
