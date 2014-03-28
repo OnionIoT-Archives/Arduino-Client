@@ -28,17 +28,17 @@ OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 }
 
 void OnionYunClient::begin() {
-    Serial.begin(115200);
-	Serial.print("Start Connection\n");
+    //Serial.begin(115200);
+	//Serial.print("Start Connection\n");
 	if (connect(deviceId, deviceKey)) {
-	    Serial.print("Sending Subscription Requests\n");
+	    //Serial.print("Sending Subscription Requests\n");
 		subscribe();
 	}
 }
 
 bool OnionYunClient::connect(char* id, char* key) {
     if (interface == 0) {
-        Serial.print("Tried to connect with no interface!");
+        //Serial.print("Tried to connect with no interface!");
         return false;
         //interface = new OnionInterface();
     }
@@ -277,7 +277,7 @@ bool OnionYunClient::loop() {
 		return true;
 	} else {
 	    unsigned long t = millis();
-		if (t - lastOutActivity > ONION_KEEPALIVE * 1000UL) {
+		if (t - lastOutActivity > ONION_RETRY * 1000UL) {
 		    this->begin();
 		}
 	}

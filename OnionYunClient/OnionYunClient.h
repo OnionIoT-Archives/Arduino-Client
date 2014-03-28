@@ -14,6 +14,7 @@
 
 // ONION_KEEPALIVE : keepAlive interval in Seconds
 #define ONION_KEEPALIVE 			15
+#define ONION_RETRY                 1
 
 #define ONIONPROTOCOLVERSION 	1
 #define ONIONCONNECT     		1 << 4  // Client request to connect to Server
