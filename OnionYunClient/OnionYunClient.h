@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <Client.h>
 #include "OnionParams.h"
-#include "OnionInterface.h"
+//#include "OnionInterface.h"
 
 // ONION_MAX_PACKET_SIZE : Maximum packet size
 #define ONION_MAX_PACKET_SIZE 	128
@@ -67,6 +67,13 @@ protected:
 	bool connect(char*, char*);
 	bool connected();
 	bool subscribe();
+	// Interface API
+	int8_t open();
+	int8_t send(OnionPacket* pkt);
+    OnionPacket* OnionInterface::getPacket(void);
+    void close(void);
+
+	    
 	uint16_t readPacket();
 	uint8_t readByte();
 	
@@ -88,10 +95,14 @@ protected:
 	uint8_t totalSubscriptions;
 	unsigned int totalFunctions;
 	//Client* _client;
-	OnionInterface* interface;
+	//OnionInterface* interface;
 	char* deviceId;
 	char* deviceKey;
+	bool isConnected;
+	bool isOnline;
 
+    OnionPacket* recvPkt;
+	Client* _client;
 };
 
 #endif

@@ -2,7 +2,7 @@
 #include "OnionPacket.h"
 #include "OnionPayloadData.h"
 #include "OnionPayloadPacker.h"
-#include "OnionInterface.h"
+//#include "OnionInterface.h"
 #include <stdio.h>
 #include <Arduino.h>
 
@@ -25,63 +25,65 @@ OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 	this->lastSubscription = NULL;
 	totalSubscriptions = 0;
 	this->interface = new OnionInterface();
+	this->isOnline = false;
+	this->isConnected = false;
+    this->_client = new YunClient();
+    this->_client->setTimeout(10); // Only wait 10 ms for more data
 }
 
 void OnionYunClient::begin() {
     //Serial.begin(115200);
 	//Serial.print("Start Connection\n");
-	if (connect(deviceId, deviceKey)) {
+	if (connect()) {
 	    //Serial.print("Sending Subscription Requests\n");
-		subscribe();
+		//subscribe();
 	}
 }
 
-bool OnionYunClient::connect(char* id, char* key) {
-    if (interface == 0) {
-        //Serial.print("Tried to connect with no interface!");
+bool OnionYunClient::connect() {
+    if (_client == 0) {
         return false;
-        //interface = new OnionInterface();
     }
-	if (!interface->connected()) {
-		int result = interface->open(OnionYunClient::domain, OnionYunClient::port);
+	if (!isOnline) {
+	    if (_client->connected()) {
+	        close();
+	    }
+		int result = open();
 
 		if (result) {
-			//nextMsgId = 1;
-            OnionPacket* pkt = new OnionPacket(128);
+            OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
             pkt->setType(ONIONCONNECT);
             OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
             pack->packArray(3);
             pack->packInt(ONIONPROTOCOLVERSION);
             pack->packStr(id);
             pack->packStr(key);
-            //pkt->send();
             interface->send(pkt);
 			lastInActivity = lastOutActivity = millis();
-            //delete pkt;
             delete pack;
-            OnionPacket *recv_pkt = interface->getPacket();
-			while (recv_pkt == 0) {
-				unsigned long t = millis();
-				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
-					interface->close();
-					return false;
-				}
-			    recv_pkt = interface->getPacket();
-			}
-			uint8_t pkt_type = recv_pkt->getType();
-			uint16_t length = recv_pkt->getPayloadLength();
-			uint8_t* payload = recv_pkt->getPayload();
-			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
-			    if (payload[0] == 0) {
-    				lastInActivity = millis();
-    				pingOutstanding = false;
-    				delete recv_pkt;
-    				return true;
-    			}
-			}
-			delete recv_pkt;
+//            OnionPacket *recv_pkt = interface->getPacket();
+//			while (recv_pkt == 0) {
+//				unsigned long t = millis();
+//				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
+//					_client->stop();
+//					return false;
+//				}
+//			    recv_pkt = getPacket();
+//			}
+//			uint8_t pkt_type = recv_pkt->getType();
+//			uint16_t length = recv_pkt->getPayloadLength();
+//			uint8_t* payload = recv_pkt->getPayload();
+//			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
+//			    if (payload[0] == 0) {
+//    				lastInActivity = millis();
+//    				pingOutstanding = false;
+//    				delete recv_pkt;
+//    				return true;
+//    			}
+//			}
+//			delete recv_pkt;
 		}
-		interface->close();
+		_client->stop();
 	}
 	return false;
 }
@@ -175,14 +177,14 @@ bool OnionYunClient::publish(char* key, char* value) {
 	int key_len = strlen(key);
 	int value_len = strlen(value);
 	if (interface->connected()) {
-        OnionPacket* pkt = new OnionPacket(128);
+        OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
         pkt->setType(ONIONPUBLISH);
         OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
         pack->packMap(1);
         pack->packStr(key);
         pack->packStr(value);
         
-	    interface->send(pkt);
+	    send(pkt);
         //pkt->send();
         delete pack;
         //delete pkt;
@@ -191,7 +193,7 @@ bool OnionYunClient::publish(char* key, char* value) {
 }
 
 bool OnionYunClient::publish(char** dataMap, uint8_t count) {
-    OnionPacket* pkt = new OnionPacket(128);
+    OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
     pkt->setType(ONIONPUBLISH);
     OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
     pack->packMap(count);
@@ -205,13 +207,13 @@ bool OnionYunClient::publish(char** dataMap, uint8_t count) {
 }
 
 bool OnionYunClient::subscribe() {
-	if (interface->connected()) {
+	if (isConnected) {
 	    // Generate 
 	    //Serial.print("->Found ");
 	    //Serial.print(totalSubscriptions);
 	    //Serial.print(" Subscriptions\n");
 	    if (totalSubscriptions > 0) {
-            OnionPacket* pkt = new OnionPacket(128);
+            OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
             pkt->setType(ONIONSUBSCRIBE);
             OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
 	        subscription_t *sub_ptr = &subscriptions;
@@ -229,7 +231,7 @@ bool OnionYunClient::subscribe() {
 	            }
 	            sub_ptr = sub_ptr->next;
 	        }
-	        interface->send(pkt);
+	        send(pkt);
 	        return true;
 	        //pkt->send();
 	        delete pack;
@@ -241,11 +243,11 @@ bool OnionYunClient::subscribe() {
 }
 
 bool OnionYunClient::loop() {
-	if (interface->connected()) {
+	if (isConnected) {
 		unsigned long t = millis();
 		if ((t - lastInActivity > ONION_KEEPALIVE * 1000UL) || (t - lastOutActivity > ONION_KEEPALIVE * 1000UL)) {
 			if (pingOutstanding) {
-				interface->close();
+				close();
 				return false;
 			} else {
 			    sendPingRequest();
@@ -254,11 +256,25 @@ bool OnionYunClient::loop() {
 				pingOutstanding = true;
 			}
 		}
-        OnionPacket* pkt = interface->getPacket();
+        OnionPacket* pkt = getPacket();
 		if (pkt != 0) {
 			lastInActivity = t;
 			uint8_t type = pkt->getType();
-			if (type == ONIONPUBLISH) {
+			if (type == ONIONCONNACK) {
+			    if (pkt->getPayload()[0] == 0) {
+    			    subscribe();
+    			} else {
+    			    close();
+    			    delete pkt;
+    			    return false;
+    			}
+		    } else if (type == ONIONSUBACK) {
+        	    //Serial.print("Publishing Data\n");
+        		//publish("/onion","isAwesome");
+        		publish(publishMap,2);
+				lastOutActivity = t;
+				isOnline = true;
+			} else if (type == ONIONPUBLISH) {
 			    parsePublishData(pkt);
 			} else if (type == ONIONPINGREQ) {
 			    // Functionize this
@@ -266,16 +282,12 @@ bool OnionYunClient::loop() {
 				lastOutActivity = t;
 			} else if (type == ONIONPINGRESP) {
 				pingOutstanding = false;
-			} else if (type == ONIONSUBACK) {
-        	    Serial.print("Publishing Data\n");
-        		//publish("/onion","isAwesome");
-        		publish(publishMap,2);
-				lastOutActivity = t;
-			}
+			} 
 			delete pkt;
 		}
 		return true;
 	} else {
+	    // not connected
 	    unsigned long t = millis();
 		if (t - lastOutActivity > ONION_RETRY * 1000UL) {
 		    this->begin();
@@ -287,17 +299,13 @@ bool OnionYunClient::loop() {
 void OnionYunClient::sendPingRequest(void) {
     OnionPacket* pkt = new OnionPacket(8);
     pkt->setType(ONIONPINGREQ);
-    interface->send(pkt);
-    //pkt->send();
-    //delete pkt;
+    send(pkt);
 }
 
 void OnionYunClient::sendPingResponse(void) {
     OnionPacket* pkt = new OnionPacket(8);
     pkt->setType(ONIONPINGRESP);
-    interface->send(pkt);
-    //pkt->send();
-    //delete pkt;
+    send(pkt);
 }
 
 void OnionYunClient::parsePublishData(OnionPacket* pkt) {
@@ -355,3 +363,60 @@ void OnionYunClient::parsePublishData(OnionPacket* pkt) {
 	//delete params;
 	delete data;
 }
+
+
+int8_t OnionYunClient::open() {
+    if (!connected()) {
+		return _client->connect(OnionYunClient::domain, OnionYunClient::port);
+	}
+	return 1;
+}
+
+int8_t OnionInterface::send(OnionPacket* pkt) {
+        int length = pkt->getBufferLength();
+        int rc = _client->write((uint8_t*)pkt->getBuffer(), length);
+        if (length == rc) {
+            delete pkt;
+            return 1;
+        }
+        delete pkt;
+        return 0;
+}
+
+OnionPacket* OnionInterface::getPacket(void) {
+    uint16_t count = _client->available();
+    if (count > 0) {
+        if (recvPkt == 0) {
+            recvPkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
+        }
+        
+        if (count > recvPkt->getFreeBuffer()) {
+            _client->flush();
+            delete recvPkt;
+            recvPkt = 0;
+            return 0;
+        }
+        uint8_t *ptr = recvPkt->getPtr();
+        for (uint16_t x = 0;x<count;x++) {
+            *ptr++ = _client->read();
+        }
+        recvPkt->incrementPtr(count);
+        uint8_t type = recvPkt->getType();
+        if (recvPkt->isComplete()) {
+            OnionPacket* pkt = recvPkt;
+            recvPkt = 0;
+            return pkt;
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+}
+
+void OnionInterface::close(void) {
+    _client->stop();
+    isOnline = false;
+    isConnected = false;
+}
+
