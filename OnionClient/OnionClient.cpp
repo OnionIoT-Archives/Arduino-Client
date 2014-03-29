@@ -1,9 +1,12 @@
 #include "OnionClient.h"
-#include "OnionPacket.h"
-#include "OnionPayloadData.h"
-#include "OnionPayloadPacker.h"
-#include "OnionInterface.h"
+#include <../OnionCore/msgpack_types.h>
+#include <../OnionCore/OnionPacket.h>
+#include <../OnionCore/OnionPayloadData.h>
+#include <../OnionCore/OnionPayloadPacker.h>
+#include <../OnionCore/OnionParams.h>
+//#include "OnionInterface.h"
 #include <stdio.h>
+#include "RPEthernetClient.h"
 #include <Arduino.h>
 
 char OnionClient::domain[] = "zh.onion.io";
@@ -24,64 +27,66 @@ OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->totalFunctions = 1;
 	this->lastSubscription = NULL;
 	totalSubscriptions = 0;
-	this->interface = new OnionInterface();
+	this->isOnline = false;
+	this->isConnected = false;
+	_client = new RPEthernetClient();
+    _client->setTimeout(10); // Only wait 10 ms for more data
 }
 
 void OnionClient::begin() {
-    Serial.begin(115200);
-	Serial.print("Start Connection\n");
-	if (connect(deviceId, deviceKey)) {
-	    Serial.print("Sending Subscription Requests\n");
-		subscribe();
+    //Serial.begin(115200);
+	//Serial.print("Start Connection\n");
+	if (connect()) {
+	    //Serial.print("Sending Subscription Requests\n");
+		//subscribe();
 	}
 }
 
-bool OnionClient::connect(char* id, char* key) {
-    if (interface == 0) {
-        Serial.print("Tried to connect with no interface!");
+bool OnionClient::connect() {
+    if (_client == 0) {
         return false;
-        //interface = new OnionInterface();
     }
-	if (!interface->connected()) {
-		int result = interface->open(OnionClient::domain, OnionClient::port);
-
+	if (!isOnline) {
+	    if (_client->connected()) {
+	        close();
+	    }
+		int result = open();
 		if (result) {
-			//nextMsgId = 1;
-            OnionPacket* pkt = new OnionPacket(128);
+            OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
             pkt->setType(ONIONCONNECT);
             OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
             pack->packArray(3);
             pack->packInt(ONIONPROTOCOLVERSION);
-            pack->packStr(id);
-            pack->packStr(key);
-            //pkt->send();
-            interface->send(pkt);
+            pack->packStr(deviceId);
+            pack->packStr(deviceKey);
+            send(pkt);
 			lastInActivity = lastOutActivity = millis();
-            //delete pkt;
             delete pack;
-            OnionPacket *recv_pkt = interface->getPacket();
-			while (recv_pkt == 0) {
-				unsigned long t = millis();
-				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
-					interface->close();
-					return false;
-				}
-			    recv_pkt = interface->getPacket();
-			}
-			uint8_t pkt_type = recv_pkt->getType();
-			uint16_t length = recv_pkt->getPayloadLength();
-			uint8_t* payload = recv_pkt->getPayload();
-			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
-			    if (payload[0] == 0) {
-    				lastInActivity = millis();
-    				pingOutstanding = false;
-    				delete recv_pkt;
-    				return true;
-    			}
-			}
-			delete recv_pkt;
+            isConnected = true;
+            return true;
+//            OnionPacket *recv_pkt = interface->getPacket();
+//			while (recv_pkt == 0) {
+//				unsigned long t = millis();
+//				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
+//					_client->stop();
+//					return false;
+//				}
+//			    recv_pkt = getPacket();
+//			}
+//			uint8_t pkt_type = recv_pkt->getType();
+//			uint16_t length = recv_pkt->getPayloadLength();
+//			uint8_t* payload = recv_pkt->getPayload();
+//			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
+//			    if (payload[0] == 0) {
+//    				lastInActivity = millis();
+//    				pingOutstanding = false;
+//    				delete recv_pkt;
+//    				return true;
+//    			}
+//			}
+//			delete recv_pkt;
 		}
-		interface->close();
+		close();
 	}
 	return false;
 }
@@ -128,61 +133,18 @@ char* OnionClient::registerFunction(char * endpoint, remoteFunction function, ch
 };
 
 
-
-void OnionClient::callback(uint8_t* topic, byte* payload, unsigned int length) {
-	// Get the function ID
-	char idStr[6] = "";
-	OnionParams* params = NULL;
-	bool hasParams = false;
-			
-	int i = 0;
-	for(i; i < length && i < 5; i++) {
-		idStr[i] = (char)payload[i];
-		if(i < length - 1 && (int)payload[i + 1] == 59) {
-			hasParams = true;
-			break;
-		}
-	}
-	// Add NULL to end of string
-	idStr[++i] = 0;
-	unsigned int functionId = atoi(idStr);
-	
-	if(hasParams) {
-		// skip the first ';'
-		int offset = ++i;
-		char* rawParams = new char[length - offset + 1];
-		rawParams[0] = 0;
-
-		// Load elements into raw params
-		for(i; i < length; i++) {
-			rawParams[i - offset] = (char)payload[i];
-		}
-		rawParams[length - offset] = 0;
-		
-		//params = new OnionParams(rawParams);
-		delete[] rawParams;
-	}
-	
-	// Call remote function
-	if(functionId && functionId < totalFunctions) {
-		remoteFunctions[functionId](params);
-	}
-
-	delete params;
-}
-
 bool OnionClient::publish(char* key, char* value) {
 	int key_len = strlen(key);
 	int value_len = strlen(value);
-	if (interface->connected()) {
-        OnionPacket* pkt = new OnionPacket(128);
+	if (isOnline) {
+        OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
         pkt->setType(ONIONPUBLISH);
         OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
         pack->packMap(1);
         pack->packStr(key);
         pack->packStr(value);
         
-	    interface->send(pkt);
+	    send(pkt);
         //pkt->send();
         delete pack;
         //delete pkt;
@@ -191,27 +153,28 @@ bool OnionClient::publish(char* key, char* value) {
 }
 
 bool OnionClient::publish(char** dataMap, uint8_t count) {
-    OnionPacket* pkt = new OnionPacket(128);
-    pkt->setType(ONIONPUBLISH);
-    OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
-    pack->packMap(count);
-    for (uint8_t x=0; x<count; x++) {
-        pack->packStr(*dataMap++);
-        pack->packStr(*dataMap++);
+    if (isOnline) {
+        OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
+        pkt->setType(ONIONPUBLISH);
+        OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
+        pack->packMap(count);
+        for (uint8_t x=0; x<count; x++) {
+            pack->packStr(*dataMap++);
+            pack->packStr(*dataMap++);
+        }
+        send(pkt);
+        delete pack;
     }
-    
-    interface->send(pkt);
-    delete pack;
 }
 
 bool OnionClient::subscribe() {
-	if (interface->connected()) {
+	if (isConnected) {
 	    // Generate 
 	    //Serial.print("->Found ");
 	    //Serial.print(totalSubscriptions);
 	    //Serial.print(" Subscriptions\n");
 	    if (totalSubscriptions > 0) {
-            OnionPacket* pkt = new OnionPacket(128);
+            OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
             pkt->setType(ONIONSUBSCRIBE);
             OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
 	        subscription_t *sub_ptr = &subscriptions;
@@ -229,7 +192,7 @@ bool OnionClient::subscribe() {
 	            }
 	            sub_ptr = sub_ptr->next;
 	        }
-	        interface->send(pkt);
+	        send(pkt);
 	        return true;
 	        //pkt->send();
 	        delete pack;
@@ -241,11 +204,11 @@ bool OnionClient::subscribe() {
 }
 
 bool OnionClient::loop() {
-	if (interface->connected()) {
+	if (isConnected) {
 		unsigned long t = millis();
 		if ((t - lastInActivity > ONION_KEEPALIVE * 1000UL) || (t - lastOutActivity > ONION_KEEPALIVE * 1000UL)) {
 			if (pingOutstanding) {
-				interface->close();
+				close();
 				return false;
 			} else {
 			    sendPingRequest();
@@ -254,11 +217,26 @@ bool OnionClient::loop() {
 				pingOutstanding = true;
 			}
 		}
-        OnionPacket* pkt = interface->getPacket();
+        OnionPacket* pkt = getPacket();
 		if (pkt != 0) {
 			lastInActivity = t;
 			uint8_t type = pkt->getType();
-			if (type == ONIONPUBLISH) {
+			if (type == ONIONCONNACK) {
+			    if (pkt->getPayload()[0] == 0) {
+    			    subscribe();
+    			} else {
+    			    close();
+    			    delete pkt;
+    			    return false;
+    			}
+
+		    } else if (type == ONIONSUBACK) {
+        	    //Serial.print("Publishing Data\n");
+        		//publish("/onion","isAwesome");
+				isOnline = true;
+        		publish(publishMap,2);
+				lastOutActivity = t;
+			} else if (type == ONIONPUBLISH) {
 			    parsePublishData(pkt);
 			} else if (type == ONIONPINGREQ) {
 			    // Functionize this
@@ -266,18 +244,13 @@ bool OnionClient::loop() {
 				lastOutActivity = t;
 			} else if (type == ONIONPINGRESP) {
 				pingOutstanding = false;
-			} else if (type == ONIONSUBACK) {
-        	    Serial.print("Publishing Data\n");
-        		//publish("/onion","isAwesome");
-        		publish(publishMap,2);
-				lastOutActivity = t;
-			}
+			} 
 			delete pkt;
 		}
 		return true;
 	} else {
 	    unsigned long t = millis();
-		if (t - lastOutActivity > ONION_KEEPALIVE * 1000UL) {
+		if (t - lastOutActivity > ONION_RETRY * 1000UL) {
 		    this->begin();
 		}
 	}
@@ -287,17 +260,13 @@ bool OnionClient::loop() {
 void OnionClient::sendPingRequest(void) {
     OnionPacket* pkt = new OnionPacket(8);
     pkt->setType(ONIONPINGREQ);
-    interface->send(pkt);
-    //pkt->send();
-    //delete pkt;
+    send(pkt);
 }
 
 void OnionClient::sendPingResponse(void) {
     OnionPacket* pkt = new OnionPacket(8);
     pkt->setType(ONIONPINGRESP);
-    interface->send(pkt);
-    //pkt->send();
-    //delete pkt;
+    send(pkt);
 }
 
 void OnionClient::parsePublishData(OnionPacket* pkt) {
@@ -321,8 +290,8 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
 //    Serial.print("Function Id=");
 //    Serial.print(function_id);
 //    Serial.print("\n");
-	OnionParams* params = new OnionParams(count-1);
-    
+//	OnionParams* params = new OnionParams(count-1);
+    char **params = new char*[count-1];
 	if (count > 1) {
 	    // Get parameters
 	    for (uint8_t i=0;i<(count-1);i++) {
@@ -336,7 +305,8 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
 //            Serial.print(buf_ptr);
 //            Serial.print("\n");
 //            delay(100);
-	        params->setStr(i,buf_ptr,strLen);
+	        //params->setStr(i,buf_ptr,strLen);
+	        params[i]=buf_ptr;
 	    }
 	}
 	if (function_id < totalFunctions) {
@@ -345,13 +315,70 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
 	    } else {
 	        // if the remote function isn't called
 	        // no one will delete params, so we have to
-	        delete params;
+	        delete[] params;
 	    }
 	} else {
 	    // We need to delete this here since no one else can
-	    delete params;
+	    delete[] params;
 	}
 	//delete pkt;
 	//delete params;
 	delete data;
 }
+
+
+int8_t OnionClient::open() {
+    if (!_client->connected()) {
+		return _client->connect(OnionClient::domain, OnionClient::port);
+	}
+	return 1;
+}
+
+int8_t OnionClient::send(OnionPacket* pkt) {
+        int length = pkt->getBufferLength();
+        int rc = _client->write((uint8_t*)pkt->getBuffer(), length);
+        if (length == rc) {
+            delete pkt;
+            return 1;
+        }
+        delete pkt;
+        return 0;
+}
+
+OnionPacket* OnionClient::getPacket(void) {
+    uint16_t count = _client->available();
+    if (count > 0) {
+        if (recvPkt == 0) {
+            recvPkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
+        }
+        
+        if (count > recvPkt->getFreeBuffer()) {
+            _client->flush();
+            delete recvPkt;
+            recvPkt = 0;
+            return 0;
+        }
+        uint8_t *ptr = recvPkt->getPtr();
+        for (uint16_t x = 0;x<count;x++) {
+            *ptr++ = _client->read();
+        }
+        recvPkt->incrementPtr(count);
+        uint8_t type = recvPkt->getType();
+        if (recvPkt->isComplete()) {
+            OnionPacket* pkt = recvPkt;
+            recvPkt = 0;
+            return pkt;
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+}
+
+void OnionClient::close(void) {
+    _client->stop();
+    isOnline = false;
+    isConnected = false;
+}
+

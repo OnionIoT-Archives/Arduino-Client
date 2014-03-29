@@ -1,4 +1,5 @@
 #include "OnionYunClient.h"
+#include <../OnionCore/msgpack_types.h>
 #include <../OnionCore/OnionPacket.h>
 #include <../OnionCore/OnionPayloadData.h>
 #include <../OnionCore/OnionPayloadPacker.h>

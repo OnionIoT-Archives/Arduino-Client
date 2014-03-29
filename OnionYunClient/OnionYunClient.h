@@ -3,8 +3,6 @@
 
 #include <Arduino.h>
 #include <Client.h>
-//#include <OnionParams.h>
-//#include <OnionPacket.h>
 //#include "../OnionCore/OnionParams.h"
 #include "../OnionCore/OnionPacket.h"
 //#include "OnionInterface.h"

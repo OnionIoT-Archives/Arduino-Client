@@ -3,8 +3,9 @@
 
 #include <Arduino.h>
 #include <Client.h>
-#include "OnionParams.h"
-#include "OnionInterface.h"
+//#include "../OnionCore/OnionParams.h"
+#include "../OnionCore/OnionPacket.h"
+//#include "OnionInterface.h"
 
 // ONION_MAX_PACKET_SIZE : Maximum packet size
 #define ONION_MAX_PACKET_SIZE 	128
@@ -14,6 +15,7 @@
 
 // ONION_KEEPALIVE : keepAlive interval in Seconds
 #define ONION_KEEPALIVE 			15
+#define ONION_RETRY                 1
 
 #define ONIONPROTOCOLVERSION 	1
 #define ONIONCONNECT     		1 << 4  // Client request to connect to Server
@@ -36,7 +38,8 @@
 #define ONIONQOS1        		(1 << 1)
 #define ONIONQOS2        		(2 << 1)
 
-typedef void(*remoteFunction)(OnionParams*);
+
+typedef void(*remoteFunction)(char**);
 typedef struct subscription_t {
     uint8_t id;
     char* endpoint;
@@ -57,15 +60,23 @@ public:
 	bool publish(char*, bool);
 	bool publish(char*, double);
 	bool loop();
+	bool isOnline;
 
 protected:
-	void callback(uint8_t*, uint8_t*, unsigned int);
+	//void callback(uint8_t*, uint8_t*, unsigned int);
 	void parsePublishData(OnionPacket* pkt);
 	void sendPingRequest(void);
 	void sendPingResponse(void);
-	bool connect(char*, char*);
+	bool connect();
 	bool connected();
 	bool subscribe();
+	// Interface API
+	int8_t open();
+	int8_t send(OnionPacket* pkt);
+    OnionPacket* getPacket(void);
+    void close(void);
+
+	    
 	uint16_t readPacket();
 	uint8_t readByte();
 	
@@ -87,10 +98,13 @@ protected:
 	uint8_t totalSubscriptions;
 	unsigned int totalFunctions;
 	//Client* _client;
-	OnionInterface* interface;
+	//OnionInterface* interface;
 	char* deviceId;
 	char* deviceKey;
+	bool isConnected;
 
+    OnionPacket* recvPkt;
+	Client* _client;
 };
 
 #endif
