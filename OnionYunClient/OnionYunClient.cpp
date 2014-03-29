@@ -26,7 +26,7 @@ OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 	this->remoteFunctions[0] = NULL;
 	this->totalFunctions = 1;
 	this->lastSubscription = NULL;
-	totalSubscriptions = 0;
+	totalSubscriptions = 0;
 	this->isOnline = false;
 	this->isConnected = false;
     _client = new YunClient();
@@ -91,6 +91,9 @@ bool OnionYunClient::connect() {
 	return false;
 }
 
+char* OnionYunClient::registerFunction(char* endpoint, remoteFunction function) {
+    return registerFunction(endpoint,function,0,0);
+}
 
 char* OnionYunClient::registerFunction(char * endpoint, remoteFunction function, char** params, uint8_t param_count) {
 	remoteFunction* resized = new remoteFunction[totalFunctions + 1];

@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <OnionClient.h>
+#include <OnionPacket.h>
 #include <SoftwareSerial.h>
 #include <Thermal.h>
 
@@ -16,16 +17,16 @@ int printer_TX_Pin = 3;
 
 Thermal printer(printer_RX_Pin, printer_TX_Pin, 19200);
 
-void printMsg(OnionParams* params) {
-  char* msg = params->getChar(0);
+void printMsg(char** params) {
+  char* msg = params[0];
   printer.print(msg);
   printer.print("\r\n\r\n\r\n");
 }
-
+char *printParams[] = {"msg"};
 void setup() {
   Ethernet.begin(mac);
+  client.registerFunction("/print", printMsg, printParams,1);
   client.begin();
-  client.post("/print", printMsg, "msg");
 }
 
 void loop() {

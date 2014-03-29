@@ -52,6 +52,7 @@ class OnionYunClient {
 public:
 	OnionYunClient(char*, char*);
 	void begin();
+	char* registerFunction(char*, remoteFunction);
 	char* registerFunction(char*, remoteFunction, char** params, uint8_t param_count);
     void update(char*, float);
     bool publish(char** dataMap, uint8_t count);

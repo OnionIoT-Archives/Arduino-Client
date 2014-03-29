@@ -92,6 +92,10 @@ bool OnionClient::connect() {
 }
 
 
+char* OnionClient::registerFunction(char* endpoint, remoteFunction function) {
+    return registerFunction(endpoint,function,0,0);
+}
+
 char* OnionClient::registerFunction(char * endpoint, remoteFunction function, char** params, uint8_t param_count) {
 	remoteFunction* resized = new remoteFunction[totalFunctions + 1];
 	if (lastSubscription == NULL) {
