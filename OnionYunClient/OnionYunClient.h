@@ -62,6 +62,7 @@ public:
 	bool publish(char*, bool);
 	bool publish(char*, double);
 	bool loop();
+	bool isOnline;
 
 protected:
 	//void callback(uint8_t*, uint8_t*, unsigned int);
@@ -103,7 +104,6 @@ protected:
 	char* deviceId;
 	char* deviceKey;
 	bool isConnected;
-	bool isOnline;
 
     OnionPacket* recvPkt;
 	Client* _client;
