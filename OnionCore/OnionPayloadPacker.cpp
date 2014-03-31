@@ -103,7 +103,7 @@ void  OnionPayloadPacker::packInt(int i) {
             if (len+4<max_len) {
                 union {int32_t i;uint8_t byte[2];} i32;
                 i32.i = i;
-                buf[len++] = MSGPACK_MAP32_HEAD;
+                buf[len++] = MSGPACK_INT32_HEAD;
                 buf[len++] = i32.byte[0];
                 buf[len++] = i32.byte[1];
                 buf[len++] = i32.byte[2];

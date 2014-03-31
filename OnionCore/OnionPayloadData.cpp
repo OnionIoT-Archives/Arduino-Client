@@ -20,17 +20,18 @@ OnionPayloadData::OnionPayloadData(OnionPacket* pkt,uint16_t offset) {
 
 OnionPayloadData::~OnionPayloadData() {
     // Free any malloc'd or new'd data in this object
-        //Serial.print("-> payload data destructor\n");
     if (dataObjectArray != 0) {
-        //Serial.print("--> deleting object array\n");
-        for (uint16_t x = 0;x<length;x++) {
+        uint16_t len = length;
+        if (dataIsMap) {
+            len *= 2;
+        }
+        for (uint16_t x = 0;x<len;x++) {
             delete dataObjectArray[x];
         }
     }
     
     if (data != 0) {
         free(data);
-        //Serial.print("--> freed data\n");
     }
     
 }
@@ -50,215 +51,199 @@ void OnionPayloadData::init(OnionPacket* pkt,uint16_t offset) {
     this->rawBuffer = (pkt->getPayload()) + offset;
     this->rawLength = pkt->getPayloadLength() - offset;
     this->dataIsObject = false;
-    //printf("->init: pkt->length = %d , offset = %d, rawLength = %d\n",pkt->getLength(), offset,this->rawLength);
+    this->dataIsMap = false;
 }
 
 // Call unpack to try and unpack the data into link list of payload objects
 // returns the count of bytes used to unpack
-int8_t OnionPayloadData::unpack(void) {
-    //printf("->unpack: rawLength = %d\n",this->rawLength);
+uint16_t OnionPayloadData::unpack(void) {
     if (rawLength == 0) {
-//        Serial.print("-> unpack: kicked out with 0 rawLength\n");
-        //printf("->unpack: kicked out b/c no rawLength\n");
         return 0;
     }
-    int bytesParsed = 0;
+    uint16_t bytesParsed = 0;
     // If we have data then assume length is 1 until we parse an actual value
     length = 1;
     bytesParsed++;  // Add one to parsed bytes since all formats have at least 1 byte
     uint8_t rawType = rawBuffer[0];
-//    Serial.print("-> unpack rawType = ");
-//    Serial.print(rawType);
-//    Serial.print("\n");
-    //printf("->unpack: rawType = %02X\n",rawType);
     if (((rawType & 0x80) == 0) || ((rawType & 0xE0) == 0xE0)) {
         type = MSGPACK_FIXINT_HEAD;
-//        Serial.print("--> unpack type = int\n");
         data = calloc(1,sizeof(int));
         int *ptr = (int*) data;
         *ptr = rawType;
-//        Serial.print("--> unpack value = ");
-//        Serial.print(*ptr);
-//        Serial.print("\n");
-        //printf("->unpack: found fixint type, value = %d\n",*ptr);
     } else if ((rawType & 0xF0) == MSGPACK_FIXMAP_HEAD) {
         type = MSGPACK_FIXMAP_HEAD;
-//        Serial.print("--> unpack type = map\n");
         length = rawType & 0x0F;
-        
-//        Serial.print("--> unpack length = ");
-//        Serial.print(length);
-//        Serial.print("\n");
-        // ************************** THIS NEEDS UPDATING *********************
-        // Need to double length of data array for map pairs, and need to handle
-        // it accordingly in the destructor (probably need another length or map bool
-        dataObjectArray = new OnionPayloadData*[length];
-        dataIsObject = true;
-        for (int x=0;x<length;x++) {
-            dataObjectArray[x] = new OnionPayloadData(pkt,offset+bytesParsed); // Begining of sub object is current offset + bytes parsed
-            bytesParsed += dataObjectArray[x]->unpack();
-        }
+        bytesParsed += unpackMap(bytesParsed,length);
     } else if ((rawType & 0xF0) == MSGPACK_FIXARRAY_HEAD) {
         type = MSGPACK_FIXARRAY_HEAD;
-//        Serial.print("--> unpack type = array\n");
         length = rawType & 0x0F;
-//        Serial.print("--> unpack length = ");
-//        Serial.print(length);
-//        Serial.print("\n");
-        dataObjectArray = new OnionPayloadData*[length];
-        dataIsObject = true;
-        //printf("->unpack: found fixArray type, length = %d\n",length);
-        for (int x=0;x<length;x++) {
-            //printf("->unpack: create a new object with offset=%d & bytesParsed=%d\n",offset,bytesParsed);
-            dataObjectArray[x] = new OnionPayloadData(pkt,offset+bytesParsed); // Begining of sub object is current offset + bytes parsed
-            bytesParsed += dataObjectArray[x]->unpack();
-        }
+        bytesParsed += unpackArray(bytesParsed,length);
     } else if ((rawType & 0xE0) == MSGPACK_FIXSTR_HEAD) {
         type = MSGPACK_FIXSTR_HEAD;
-//        Serial.print("--> unpack type = str\n");
         length = rawType & 0x1F;
-//        Serial.print("--> unpack length = ");
-//        Serial.print(length);
-//        Serial.print("\n");
-        data = new char[length+1];
-        char* ptr = (char*) data;
-        memcpy(ptr,rawBuffer+1,length);
-        // Do I really need to add this null? probably, but may not be necessary
-        ptr[length] = 0;
-        bytesParsed += length;
+        bytesParsed += unpackStr(rawBuffer+1,length);
     } else {
         type = rawType;
-//        Serial.print("--> unpack type = (other) = ");
-//        Serial.print(rawType);
-//        Serial.print("\n");
-//        switch (type) {
-//            case MSGPACK_NIL_HEAD: {
-//                data = 0;
-//                break;
-//            }   
-//            case MSGPACK_FALSE_HEAD: {
-//                bool* ptr = (bool*) data;
-//                *ptr = false;
-//                break;
-//            }   
-//            case MSGPACK_TRUE_HEAD: {
-//                bool* ptr = (bool*) data;
-//                *ptr = true;
-//                break;
-//            }   
-//            case MSGPACK_BIN8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_BIN16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_BIN32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_EXT8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_EXT16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_EXT32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FLOAT32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FLOAT64_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_UINT8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_UINT16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_UINT32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_UINT64_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_INT8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_INT16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_INT32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_INT64_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FIXEXT1_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FIXEXT2_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FIXEXT4_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FIXEXT8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_FIXEXT16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_STR8_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_STR16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_STR32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_ARRAY16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_ARRAY32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_MAP16_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//            case MSGPACK_MAP32_HEAD: {
-//                // Not Implemented yet
-//                break;
-//            }   
-//        }
+        switch (type) {
+            case MSGPACK_NIL_HEAD: {
+                data = 0;
+                break;
+            }   
+            case MSGPACK_FALSE_HEAD: {
+                bool* ptr = (bool*) data;
+                *ptr = false;
+                break;
+            }   
+            case MSGPACK_TRUE_HEAD: {
+                bool* ptr = (bool*) data;
+                *ptr = true;
+                break;
+            }   
+            case MSGPACK_BIN8_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_BIN16_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_BIN32_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_EXT8_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_EXT16_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_EXT32_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FLOAT32_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FLOAT64_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_UINT8_HEAD: {
+                data = new uint8_t;
+                uint8_t *ptr = (uint8_t*) data;
+                *ptr = rawBuffer[1];
+                bytesParsed++;
+                break;
+            }   
+            case MSGPACK_UINT16_HEAD: {
+                data = new uint16_t;
+                uint16_t *ptr = (uint16_t*) data;
+                *ptr = rawBuffer[1]<<8 + rawBuffer[2];
+                bytesParsed+=2;
+                break;
+            }   
+            case MSGPACK_UINT32_HEAD: {
+                data = new uint32_t;
+                uint32_t *ptr = (uint32_t*) data;
+                *ptr = rawBuffer[1]<<24 + rawBuffer[2]<<16 + rawBuffer[3]<<8 + rawBuffer[4];
+                bytesParsed+=4;
+                break;
+            }   
+            case MSGPACK_UINT64_HEAD: {
+                data = new uint64_t;
+                uint64_t *ptr = (uint64_t*) data;
+                *ptr = rawBuffer[1]<<56 + rawBuffer[2]<<48 + rawBuffer[3]<<40 + rawBuffer[4]<<32 + rawBuffer[5]<<24 + rawBuffer[6]<<16 + rawBuffer[7]<<8 + rawBuffer[8];
+                bytesParsed+=8;
+                break;
+            }   
+            case MSGPACK_INT8_HEAD: {
+                data = new int8_t;
+                int8_t *ptr = (int8_t*) data;
+                *ptr = rawBuffer[1];
+                bytesParsed++;
+                break;
+            }   
+            case MSGPACK_INT16_HEAD: {
+                data = new int16_t;
+                int16_t *ptr = (int16_t*) data;
+                *ptr = rawBuffer[1]<<8 + rawBuffer[2];
+                bytesParsed+=2;
+                break;
+            }   
+            case MSGPACK_INT32_HEAD: {
+                data = new int32_t;
+                int32_t *ptr = (int32_t*) data;
+                *ptr = rawBuffer[1]<<24 + rawBuffer[2]<<16 + rawBuffer[3]<<8 + rawBuffer[4];
+                bytesParsed+=4;
+                break;
+            }   
+            case MSGPACK_INT64_HEAD: {
+                data = new int64_t;
+                int64_t *ptr = (int64_t*) data;
+                *ptr = rawBuffer[1]<<56 + rawBuffer[2]<<48 + rawBuffer[3]<<40 + rawBuffer[4]<<32 + rawBuffer[5]<<24 + rawBuffer[6]<<16 + rawBuffer[7]<<8 + rawBuffer[8];
+                bytesParsed+=8;
+                break;
+            }   
+            case MSGPACK_FIXEXT1_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FIXEXT2_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FIXEXT4_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FIXEXT8_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_FIXEXT16_HEAD: {
+                // Not Implemented yet
+                break;
+            }   
+            case MSGPACK_STR8_HEAD: {
+                length = rawBuffer[1];
+                bytesParsed++;
+                bytesParsed += unpackStr(rawBuffer+2,length);
+                break;
+            }   
+            case MSGPACK_STR16_HEAD: {
+                length = rawBuffer[1]<<8 + rawBuffer[2];
+                bytesParsed += 2;
+                bytesParsed += unpackStr(rawBuffer+3,length);
+                break;
+            }   
+            case MSGPACK_STR32_HEAD: {
+                // Not Implemented (should never be this big since a single packet can only be 64k)
+                break;
+            }   
+            case MSGPACK_ARRAY16_HEAD: {
+                length = rawBuffer[1] << 8 + rawBuffer[2];
+                bytesParsed += 2;
+                bytesParsed += unpackArray(bytesParsed,length);
+                break;
+            }   
+            case MSGPACK_ARRAY32_HEAD: {
+                // Not Implemented (should never be this big since a single packet can only be 64k)
+                break;
+            }   
+            case MSGPACK_MAP16_HEAD: {
+                length = rawBuffer[1] << 8 + rawBuffer[2];
+                bytesParsed += 2;
+                bytesParsed += unpackMap(bytesParsed,length);
+                break;
+            }   
+            case MSGPACK_MAP32_HEAD: {
+                // Not Implemented (should never be this big since a single packet can only be 64k)
+                break;
+            }   
+        }
     }
     return bytesParsed;
 }
@@ -311,177 +296,45 @@ bool OnionPayloadData::getBool(void) {
 
 
 // Protected Functions
-//void OnionPayloadData::unpackArray(void) {
+uint16_t OnionPayloadData::unpackArray(uint16_t bytesParsed,uint16_t length) {
+    dataObjectArray = new OnionPayloadData*[length];
+    dataIsObject = true;
+    for (int x=0;x<length;x++) {
+        dataObjectArray[x] = new OnionPayloadData(pkt,offset+bytesParsed); // Begining of sub object is current offset + bytes parsed
+        bytesParsed += dataObjectArray[x]->unpack();
+    }
+    return bytesParsed;
+}
+
+uint16_t OnionPayloadData::unpackMap(uint16_t bytesParsed,uint16_t length) {
+    dataObjectArray = new OnionPayloadData*[2*length];
+    dataIsObject = true;
+    dataIsMap = true;
+    for (int x=0;x<(2*length);x++) {
+        dataObjectArray[x] = new OnionPayloadData(pkt,offset+bytesParsed); // Begining of sub object is current offset + bytes parsed
+        bytesParsed += dataObjectArray[x]->unpack();
+    }
+}
+
+//uint16_t OnionPayloadData::unpackInt(uint8_t* raw,uint8_t bytes) {
+//    // The bytes should be 1,2,4,8 for 8/16/32/64 bit ints
+//    data = calloc(bytes, sizeof(uint8_t));
 //    
 //}
-//
-//void OnionPayloadData::unpackMap(void) {
-//    
-//}
-//
-//void OnionPayloadData::unpackInt(void) {
-//    
-//}
-//
-//void OnionPayloadData::unpackStr(void) {
-//    
-//}
-//
+
+uint16_t OnionPayloadData::unpackStr(uint8_t* raw,uint16_t length) {
+    data = new char[length+1];
+    char* ptr = (char*) data;
+    memcpy(ptr,raw,length);
+    // Do I really need to add this null? probably, but may not be necessary
+    ptr[length] = 0;
+    return length;
+}
+
 //void OnionPayloadData::unpackNil(void) {
 //    
 //}
 //
 //void OnionPayloadData::unpackBool(void) {
 //    
-//}
-
-
-//
-//
-//void  OnionPayloadData::packArray(int length) {
-//    // First ensure the buffer isn't full
-//    if (len<max_len) {
-//        if (length < 16) {
-//            buf[len++] = MSGPACK_FIXARRAY_HEAD + length;
-//        } else if (length < 65536) {
-//            // Ensure we have at least 3 bytes
-//            if (len+2<max_len) {               
-//                buf[len++] = MSGPACK_ARRAY16_HEAD;
-//                buf[len++] = length >> 8;
-//                buf[len++] = length & 0xFF;
-//            }
-//        } else {
-//            // Ensure we have at least 5 bytes
-//            if (len+4<max_len) {
-//                buf[len++] = MSGPACK_ARRAY32_HEAD;
-//                buf[len++] = length >> 24;
-//                buf[len++] = (length >> 16) & 0xFF;
-//                buf[len++] = (length >> 8) & 0xFF;
-//                buf[len++] = length & 0xFF;
-//            }
-//        }
-//    }
-//}
-//
-//void  OnionPayloadData::packMap(int length) {
-//    // First ensure the buffer isn't full
-//    if (len<max_len) {
-//        if (length < 16) {
-//            buf[len++] = MSGPACK_FIXMAP_HEAD + length;
-//        } else if (length < 65536) {
-//            // Ensure we have at least 3 bytes
-//            if (len+2<max_len) {               
-//                buf[len++] = MSGPACK_MAP16_HEAD;
-//                buf[len++] = length >> 8;
-//                buf[len++] = length & 0xFF;
-//            }
-//        } else {
-//            // Ensure we have at least 5 bytes
-//            if (len+4<max_len) {
-//                buf[len++] = MSGPACK_MAP32_HEAD;
-//                buf[len++] = length >> 24;
-//                buf[len++] = (length >> 16) & 0xFF;
-//                buf[len++] = (length >> 8) & 0xFF;
-//                buf[len++] = length & 0xFF;
-//            }
-//        }
-//    }
-//}
-//
-//void  OnionPayloadData::packInt(int i) {
-//    union {int16_t i;uint8_t byte[2];} i16;
-//    // First ensure the buffer isn't full
-//    if (len<max_len) {
-//        if (i < 128 && i > -33) {
-//            // fixInt
-//            buf[len++] = (int8_t)i;
-//        } else if ((i>=0) && (i<128)) {
-//            buf[len++] = (int8_t)i;
-//        } else if ((i > -129) && (i<128)) {
-//            // Ensure we have at least 2 bytes
-//            if (len+1 < max_len) {
-//                buf[len++] = MSGPACK_INT8_HEAD;
-//                buf[len++] = i;
-//            }
-//        } else if ((i > -32769) && (i<32768)) {
-//            // Ensure we have at least 2 bytes
-//            if (len+2 < max_len) {
-//                union {int16_t i;uint8_t byte[2];} i16;
-//                i16.i = i;
-//                buf[len++] = MSGPACK_INT16_HEAD;
-//                buf[len++] = i16.byte[0];
-//                buf[len++] = i16.byte[1];
-//            }
-//        } else {
-//            // Ensure we have at least 5 bytes
-//            if (len+4<max_len) {
-//                union {int32_t i;uint8_t byte[2];} i32;
-//                i32.i = i;
-//                buf[len++] = MSGPACK_MAP32_HEAD;
-//                buf[len++] = i32.byte[0];
-//                buf[len++] = i32.byte[1];
-//                buf[len++] = i32.byte[2];
-//                buf[len++] = i32.byte[3];
-//            }
-//        }
-//    }
-//}
-//
-//void  OnionPayloadData::packStr(uint8_t* c) {
-//    int len = strlen(c);
-//    packStr(c,len);
-//}
-//
-//void  OnionPayloadData::packStr(uint8_t* c, int length) {
-//    // First ensure the buffer isn't full
-//    if (len+length<max_len) {
-//        if (length < 32) {
-//            buf[len++] = MSGPACK_FIXSTR_HEAD + length;
-//        } else if (length < 256) {
-//            // Ensure we have at least 2 bytes
-//            buf[len++] = MSGPACK_STR8_HEAD;
-//            buf[len++] = length & 0xFF;
-//        } else if (length < 65536) {
-//            // Ensure we have at least 3 bytes
-//            buf[len++] = MSGPACK_STR16_HEAD;
-//            buf[len++] = length >> 8;
-//            buf[len++] = length & 0xFF;
-//        } else {
-//            buf[len++] = MSGPACK_STR32_HEAD;
-//            buf[len++] = length >> 24;
-//            buf[len++] = (length >> 16) & 0xFF;
-//            buf[len++] = (length >> 8) & 0xFF;
-//            buf[len++] = length & 0xFF;
-//        }
-//        if (len+length <= max_len) {
-//            memcpy(buf+len,c,length);
-//            len+=length;
-//        }
-//    }
-//}
-//
-//void  OnionPayloadData::packNil() {
-//    // First ensure the buffer isn't full
-//    if (len+length<max_len) {
-//        buf[len++] = MSGPACK_NIL_HEAD;
-//    }
-//}
-//
-//void  OnionPayloadData::packBool(bool b) {
-//    // First ensure the buffer isn't full
-//    if (len+length<max_len) {
-//        if (b) {
-//            buf[len++] = MSGPACK_TRUE_HEAD;
-//        } else {
-//            buf[len++] = MSGPACK_FALSE_HEAD;
-//        }
-//    }
-//}
-//
-//int   OnionPayloadData::getLength(void) {
-//    return this->len;
-//}
-//
-//uint8_t* OnionPayloadData::getBuffer(void) {
-//    return this->buf;
 //}
