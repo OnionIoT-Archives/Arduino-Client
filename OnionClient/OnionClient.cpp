@@ -9,7 +9,7 @@
 #include "RPEthernetClient.h"
 #include <Arduino.h>
 
-char OnionClient::domain[] = "zh.onion.io";
+char OnionClient::domain[] = "device.onion.io";
 uint16_t OnionClient::port = 2721;
    
 static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};

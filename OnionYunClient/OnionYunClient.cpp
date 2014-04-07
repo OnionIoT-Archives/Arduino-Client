@@ -9,7 +9,7 @@
 #include <YunClient.h> 
 #include <Arduino.h>
 
-char OnionYunClient::domain[] = "zh.onion.io";
+char OnionYunClient::domain[] = "device.onion.io";
 uint16_t OnionYunClient::port = 2721;
    
 static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
@@ -278,23 +278,11 @@ void OnionYunClient::parsePublishData(OnionPacket* pkt) {
     
     uint16_t length = pkt->getBufferLength();
     uint8_t *ptr = pkt->getBuffer();
-//    Serial.print("Publish Pkt Length = ");
-//    Serial.print(length);
-//    Serial.print("\n");
     OnionPayloadData* data = new OnionPayloadData(pkt);
     
-//    Serial.print("Payload Raw Length = ");
-//    Serial.print(data->getRawLength());
-//    Serial.print("\n");
     data->unpack();
     uint8_t count = data->getLength();
     uint8_t function_id = data->getItem(0)->getInt();
-//    Serial.print("Param Count=");
-//    Serial.print(count-1);
-//    Serial.print("\n");
-//    Serial.print("Function Id=");
-//    Serial.print(function_id);
-//    Serial.print("\n");
 //	OnionParams* params = new OnionParams(count-1);
     char **params = new char*[count-1];
 	if (count > 1) {
@@ -304,12 +292,6 @@ void OnionYunClient::parsePublishData(OnionPacket* pkt) {
 	        uint8_t strLen = item->getLength();
 	        // Test
 	        char* buf_ptr = (char *)(item->getBuffer());
-//            Serial.print("param #");
-//            Serial.print(i+1);
-//            Serial.print(" = ");
-//            Serial.print(buf_ptr);
-//            Serial.print("\n");
-//            delay(100);
 	        //params->setStr(i,buf_ptr,strLen);
 	        params[i]=buf_ptr;
 	    }
@@ -326,8 +308,6 @@ void OnionYunClient::parsePublishData(OnionPacket* pkt) {
 	    // We need to delete this here since no one else can
 	    delete[] params;
 	}
-	//delete pkt;
-	//delete params;
 	delete data;
 }
 
