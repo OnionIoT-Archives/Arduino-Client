@@ -34,11 +34,7 @@ OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 }
 
 void OnionYunClient::begin() {
-    //Serial.begin(115200);
-	//Serial.print("Start Connection\n");
 	if (connect()) {
-	    //Serial.print("Sending Subscription Requests\n");
-		//subscribe();
 	}
 }
 
@@ -64,27 +60,6 @@ bool OnionYunClient::connect() {
             delete pack;
             isConnected = true;
             return true;
-//            OnionPacket *recv_pkt = interface->getPacket();
-//			while (recv_pkt == 0) {
-//				unsigned long t = millis();
-//				if (t - lastInActivity > ONION_KEEPALIVE * 1000UL) {
-//					_client->stop();
-//					return false;
-//				}
-//			    recv_pkt = getPacket();
-//			}
-//			uint8_t pkt_type = recv_pkt->getType();
-//			uint16_t length = recv_pkt->getPayloadLength();
-//			uint8_t* payload = recv_pkt->getPayload();
-//			if ((pkt_type == ONIONCONNACK) && (length > 0)) {
-//			    if (payload[0] == 0) {
-//    				lastInActivity = millis();
-//    				pingOutstanding = false;
-//    				delete recv_pkt;
-//    				return true;
-//    			}
-//			}
-//			delete recv_pkt;
 		}
 		close();
 	}
@@ -173,9 +148,6 @@ bool OnionYunClient::publish(char** dataMap, uint8_t count) {
 bool OnionYunClient::subscribe() {
 	if (isConnected) {
 	    // Generate 
-	    //Serial.print("->Found ");
-	    //Serial.print(totalSubscriptions);
-	    //Serial.print(" Subscriptions\n");
 	    if (totalSubscriptions > 0) {
             OnionPacket* pkt = new OnionPacket(ONION_MAX_PACKET_SIZE);
             pkt->setType(ONIONSUBSCRIBE);
@@ -184,7 +156,6 @@ bool OnionYunClient::subscribe() {
 	        pack->packArray(totalSubscriptions);
         	uint8_t string_len = 0;
         	uint8_t param_count = 0;
-        	//Serial.print("->Packing subs\n");
 	        for (uint8_t i=0;i<totalSubscriptions;i++) {
 	            param_count = sub_ptr->param_count;
 	            pack->packArray(param_count+2);
@@ -197,9 +168,7 @@ bool OnionYunClient::subscribe() {
 	        }
 	        send(pkt);
 	        return true;
-	        //pkt->send();
 	        delete pack;
-	        //delete pkt;
 	    }
 	    
 	}
@@ -235,8 +204,6 @@ bool OnionYunClient::loop() {
     			}
 
 		    } else if (type == ONIONSUBACK) {
-        	    //Serial.print("Publishing Data\n");
-        		//publish("/onion","isAwesome");
 				isOnline = true;
         		publish(publishMap,2);
 				lastOutActivity = t;
@@ -362,6 +329,7 @@ OnionPacket* OnionYunClient::getPacket(void) {
 }
 
 void OnionYunClient::close(void) {
+    _client->flush();
     _client->stop();
     isOnline = false;
     isConnected = false;
