@@ -9,10 +9,10 @@
 #include <YunClient.h> 
 #include <Arduino.h>
 
-char OnionYunClient::domain[] = "device.onion.io";
+char OnionYunClient::domain[] = "zh.onion.io";
 uint16_t OnionYunClient::port = 2721;
    
-static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
+//static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
 OnionYunClient::OnionYunClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
 	this->deviceId[0] = 0;
@@ -59,6 +59,7 @@ bool OnionYunClient::connect() {
 			lastInActivity = lastOutActivity = millis();
             delete pack;
             isConnected = true;
+            pingOutstanding = false;
             return true;
 		}
 		close();
@@ -205,7 +206,7 @@ bool OnionYunClient::loop() {
 
 		    } else if (type == ONIONSUBACK) {
 				isOnline = true;
-        		publish(publishMap,2);
+        		//publish(publishMap,2);
 				lastOutActivity = t;
 			} else if (type == ONIONPUBLISH) {
 			    parsePublishData(pkt);
