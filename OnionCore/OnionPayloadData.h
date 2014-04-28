@@ -9,7 +9,8 @@ class OnionPayloadData {
 public:
 	OnionPayloadData();
 	OnionPayloadData(OnionPacket* pkt);
-	OnionPayloadData(OnionPacket* pkt,unsigned int offset);
+	OnionPayloadData(OnionPacket* pkt,uint16_t offset);
+	
 	~OnionPayloadData();
 	// Initalize data in object
 	void init(OnionPacket* pkt,uint16_t offset);

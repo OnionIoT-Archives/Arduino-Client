@@ -31,12 +31,12 @@ OnionPayloadData::~OnionPayloadData() {
     }
     
     if (data != 0) {
-        free(data);
+        delete[] data;
     }
     
 }
 
-int OnionPayloadData::getRawLength() {
+int16_t OnionPayloadData::getRawLength() {
     return this->rawLength;
 }
 
@@ -214,7 +214,7 @@ uint16_t OnionPayloadData::unpack(void) {
                 break;
             }   
             case MSGPACK_STR16_HEAD: {
-                length = rawBuffer[1]<<8 + rawBuffer[2];
+                length = (rawBuffer[1]<<8) + rawBuffer[2];
                 bytesParsed += 2;
                 bytesParsed += unpackStr(rawBuffer+3,length);
                 break;
