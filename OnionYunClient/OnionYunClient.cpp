@@ -9,7 +9,7 @@
 #include <YunClient.h> 
 #include <Arduino.h>
 
-char OnionYunClient::domain[] = "zh.onion.io";
+char OnionYunClient::domain[] = "device.onion.io";
 uint16_t OnionYunClient::port = 2721;
    
 //static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
