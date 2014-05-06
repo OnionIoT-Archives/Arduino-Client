@@ -78,6 +78,7 @@ proc handleConnectionRead {s} {
 }
 
 proc parsePacket {sock type length payload} {
+    puts "Recv From Sock: $sock"
     switch $type {
         "10" {
             puts "Got Connection Packet: Payload = $payload"
@@ -104,8 +105,67 @@ proc send {sock command payload} {
     flush $sock 
 }
 
+proc publishData {sock funcId {params ""}} {
+    # this will pack the list of params into publish packet and send it
+    set paramLength [llength $params]
+    set payload [msgPackArray [expr $paramLength + 1]]
+    append payload [msgPackInt $funcId]
+    foreach param $params {
+        append payload [msgPackString $param]
+    }
+    send $sock 30 $payload
+    
+}
+
 proc parseMsgPack {hex} {
         
+}
+
+proc msgPackInt int {
+    if {$int >= 0} {
+        if {$int < 128} {
+            return [format "%02X" $int]
+        } elseif {$int < 256} {
+            return CC[format "%02X" $int]
+        } elseif {$int < 65536} {
+            return CD[format "%04X" $int]
+        } else {
+            return CE[format "%04X" $int]
+        }
+    } else {
+        if {$int > -32} {
+            return [string range [format "%02hX" $int] end-1 end]
+        } elseif {$int > -129} {
+            return D0[string range [format "%02hX" $int] end-1 end]
+        } elseif {$int > -32768} {
+            return D1[format "%04hX" $int]
+        } else {
+            return D2[format "%08X" $int]
+        }
+    }
+}
+
+proc msgPackArray {length} {
+    if {$length < 16} {
+        return [format "%02X" [expr 0x90 + $length]]
+    } elseif {$length < 65536} {
+        return DC[format "%04X" $length]
+    } else {
+        return DD[format "%08X" $length]
+    }
+}
+
+
+proc msgPackString {str} {
+    set length [string length $str]
+    binary scan $str H* strHex
+    if {$length < 32} {
+        return [format "%02X" [expr 0xA0 + $length]]$strHex
+    } elseif {$length < 256} {
+        return D9[format "%02X" $length]$strHex
+    } else {
+        return DA[format "%04X" $length]$strHex
+    }
 }
 
 proc every {ms body} {
