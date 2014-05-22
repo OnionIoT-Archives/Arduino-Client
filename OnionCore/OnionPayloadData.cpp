@@ -67,8 +67,8 @@ uint16_t OnionPayloadData::unpack(void) {
     uint8_t rawType = rawBuffer[0];
     if (((rawType & 0x80) == 0) || ((rawType & 0xE0) == 0xE0)) {
         type = MSGPACK_FIXINT_HEAD;
-        data = calloc(1,sizeof(int));
-        int *ptr = (int*) data;
+        data = new int8_t;
+        int8_t *ptr = (int8_t*) data;
         *ptr = rawType;
     } else if ((rawType & 0xF0) == MSGPACK_FIXMAP_HEAD) {
         type = MSGPACK_FIXMAP_HEAD;
