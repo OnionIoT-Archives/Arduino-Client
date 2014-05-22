@@ -79,6 +79,7 @@ proc handleConnectionRead {s} {
 
 proc parsePacket {sock type length payload} {
     puts "Recv From Sock: $sock"
+    set ::s $sock
     switch $type {
         "10" {
             puts "Got Connection Packet: Payload = $payload"
@@ -188,7 +189,44 @@ proc cleanup {} {
         }
     }
 }
+set ::BeatingAfter ""
 
 proc stopLoop {} {
     after cancel $::EveryAfter
+}
+
+proc startBeating {} {
+    if {$::BeatingAfter == ""} {
+        set ::BeatCount 0
+        beatevery
+    }
+}
+
+proc setBeating {ms body} {
+    set ::SmackTime $ms
+    set ::SmackCode $body
+}
+
+proc beatevery {} {
+    global BeatingAfter
+    eval $::SmackCode
+    incr ::BeatCount
+    set BeatingAfter [after $::SmackTime [info level 0]]
+}
+
+proc stopBeating {} {
+    after cancel $::BeatingAfter
+    set ::BeatingAfter ""
+    puts "Code was beat $::BeatCount times"
+    set ::BeatCount 0
+}
+set ::LED 0
+proc toggleLED {} {
+    if {$::LED} {
+        publishData $::s 2
+        set ::LED 0
+    } else {
+        publishData $::s 1
+        set ::LED 1
+    }
 }
