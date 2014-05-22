@@ -75,7 +75,6 @@ void  OnionPayloadPacker::packMap(int length) {
 }
 
 void  OnionPayloadPacker::packInt(int i) {
-    union {int16_t i;uint8_t byte[2];} i16;
     // First ensure the buffer isn't full
     if (len<max_len) {
         if (i < 128 && i > -33) {
@@ -101,7 +100,7 @@ void  OnionPayloadPacker::packInt(int i) {
         } else {
             // Ensure we have at least 5 bytes
             if (len+4<max_len) {
-                union {int32_t i;uint8_t byte[2];} i32;
+                union {int32_t i;uint8_t byte[4];} i32;
                 i32.i = i;
                 buf[len++] = MSGPACK_INT32_HEAD;
                 buf[len++] = i32.byte[0];

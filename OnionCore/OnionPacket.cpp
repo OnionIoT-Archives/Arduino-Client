@@ -74,18 +74,18 @@ uint8_t* OnionPacket::getPayload(void) {
 
 bool OnionPacket::isComplete(void) {
     if (ptr == buf) {
-        Serial.print("-->ptr = buf\n");
+//        Serial.print("-->ptr = buf\n");
         return false;
     }
     uint16_t set_length = (buf[1] << 8) + buf[2];
     if (set_length == length) {
         return true;
     }
-    Serial.print("-->set length = ");
-    Serial.print(set_length);
-    Serial.print(", length = ");
-    Serial.print(length);
-    Serial.print("\n");
+//    Serial.print("-->set length = ");
+//    Serial.print(set_length);
+//    Serial.print(", length = ");
+//    Serial.print(length);
+//    Serial.print("\n");
     return false;
 }
 

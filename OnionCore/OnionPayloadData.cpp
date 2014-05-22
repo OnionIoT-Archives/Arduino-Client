@@ -28,6 +28,7 @@ OnionPayloadData::~OnionPayloadData() {
         for (uint16_t x = 0;x<len;x++) {
             delete dataObjectArray[x];
         }
+        delete [] dataObjectArray;
     }
     
     if (data != 0) {

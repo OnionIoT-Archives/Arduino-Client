@@ -12,7 +12,7 @@
 char OnionClient::domain[] = "device.onion.io";
 uint16_t OnionClient::port = 2721;
    
-static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
+//static char* publishMap[] = {"ipAddr","192.168.137.1","mac","deadbeef"};
 OnionClient::OnionClient(char* deviceId, char* deviceKey) {
 	this->deviceId = new char[strlen(deviceId) + 1];
 	this->deviceId[0] = 0;
@@ -183,7 +183,7 @@ bool OnionClient::subscribe() {
             OnionPayloadPacker* pack = new OnionPayloadPacker(pkt);
 	        subscription_t *sub_ptr = &subscriptions;
 	        pack->packArray(totalSubscriptions);
-        	uint8_t string_len = 0;
+        	//uint8_t string_len = 0;
         	uint8_t param_count = 0;
         	//Serial.print("->Packing subs\n");
 	        for (uint8_t i=0;i<totalSubscriptions;i++) {
@@ -197,10 +197,8 @@ bool OnionClient::subscribe() {
 	            sub_ptr = sub_ptr->next;
 	        }
 	        send(pkt);
-	        return true;
-	        //pkt->send();
 	        delete pack;
-	        //delete pkt;
+	        return true;
 	    }
 	    
 	}
@@ -295,38 +293,26 @@ void OnionClient::parsePublishData(OnionPacket* pkt) {
 //    Serial.print(function_id);
 //    Serial.print("\n");
 //	OnionParams* params = new OnionParams(count-1);
-    char **params = new char*[count-1];
-	if (count > 1) {
+    char **params = 0;
+    if (count > 1) {
+        params = new char*[count-1];
 	    // Get parameters
 	    for (uint8_t i=0;i<(count-1);i++) {
 	        OnionPayloadData* item = data->getItem(i+1);
 	        uint8_t strLen = item->getLength();
 	        // Test
-	        char* buf_ptr = (char *)(item->getBuffer());
-//            Serial.print("param #");
-//            Serial.print(i+1);
-//            Serial.print(" = ");
-//            Serial.print(buf_ptr);
-//            Serial.print("\n");
-//            delay(100);
+	        params[i] = (char *)(item->getBuffer());
 	        //params->setStr(i,buf_ptr,strLen);
-	        params[i]=buf_ptr;
 	    }
 	}
 	if (function_id < totalFunctions) {
 	    if (remoteFunctions[function_id] != 0) {
 	        remoteFunctions[function_id](params);
-	    } else {
-	        // if the remote function isn't called
-	        // no one will delete params, so we have to
-	        delete[] params;
 	    }
-	} else {
-	    // We need to delete this here since no one else can
-	    delete[] params;
+	} 
+	if (params != 0) {
+	    delete[] params;   
 	}
-	//delete pkt;
-	//delete params;
 	delete data;
 }
 
